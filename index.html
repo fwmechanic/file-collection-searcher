@@ -1,0 +1,22 @@
+<HTML>
+<TITLE>File-Collection-Searcher</TITLE>
+<BODY>
+<b>Find books whose name match <i>all</i> terms you provide</b><p>
+<ol>
+<li>a <b>term</b> is a sequence of non-space characters; 'PDF', '65jw' and 'golang' are terms.</li>
+<li>term-matching is always case-insensitive.</li>
+<li>an ALL-CAPS term matches only whole words in book names</li>
+<li>a non-ALL-CAPS term matches a book name containing the same term text.</li>
+<li>an ebook-file's extension (e.g. pdf, epub) is part of its name and thus a word search candidate.</li>
+<li>EX: 'bo PDF' matches 'book.pdf' but not 'bopdfok.epub'. 'my p' matches 'my.book.pdf' and 'myopia.epub'</li>
+</ol>
+<FORM ACTION="/cgi/search-files">
+<INPUT TYPE="TEXT" NAME="search_keys" SIZE="80" maxlength="255"><BR>
+<INPUT TYPE="SUBMIT" NAME="Submit" VALUE="Find Books Matching all Terms">
+</FORM>
+<ul>
+<li><a href="/files/books">Browse ebook collection</a></li>
+<li><a href="/files/mp3">Browse MP3 collection</a></li>
+</ul>
+</BODY>
+</HTML>
