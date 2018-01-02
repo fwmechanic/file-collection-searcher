@@ -28,12 +28,12 @@ server {
     location /files/ebooks {
         alias /mnt/smb/pri/data/public/ebooks;
         autoindex on;
-        index index.html index.htm;
+        autoindex_exact_size off;
     }
     location /files/mp3 {
         alias /mnt/smb/pri/data/public/MP3;
         autoindex on;
-        index index.html index.htm;
+        autoindex_exact_size off;
     }
     location ~ ^/cgi {
         root %repo_dir%/;
