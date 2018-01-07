@@ -87,27 +87,27 @@ sub search_files { my ($isamatch,$pat) = @_;
 # all files having the same basename and compress them as above.
 #
 use CGI;
-my $qy = CGI->new;
+my $qy = CGI->new; my $norm_search_terms;
 {
 my $isamatch    = "[".      ($qy->Vars->{search_scope} // 'b') ."]"; # default to Book search
 my @search_keys = split(' ',($qy->Vars->{search_keys } // '' )    );
-my $pat = gen_re_match_all_anyorder( @search_keys );
-search_files( $isamatch, $pat );
+$norm_search_terms = join(' ',@search_keys);
+search_files( $isamatch, gen_re_match_all_anyorder( @search_keys ) );
+}
 print $qy->header;
 print $qy->start_html(
-      -title=>join(' ',@search_keys),
+      -title=>$norm_search_terms,
       -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
       );
-}
 # print $qy->Dump();
-print $qy->h3("Found",($num_matches||"no"),"matches among",$num_cands,"candidates"), "\n";
+print $qy->h3("Found",($num_matches||"no"),"matches of '$norm_search_terms' among",$num_cands,"candidates"), "\n";
 for my $yr (reverse sort keys %dated_rslts) { # print "$yr:\n";
    print $qy->h3("&copy;".($yr || "<i>unknown</i>")), "\n";
    my @lis;
    for my $link_wo_type (sort @{$dated_rslts{$yr}}) {
       my ($fnm) = $link_wo_type =~ m=([^/]+)$=;
       my @out = ( $fnm );
-      for my $type ( @{$extra{$link_wo_type}} ) {
+      for my $type ( reverse sort @{$extra{$link_wo_type}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
          push @out, $qy->a({href=>"$link_wo_type$type"},$type),"\n";
          }
       push @lis, $qy->li(join(' ',@out)),"\n";
