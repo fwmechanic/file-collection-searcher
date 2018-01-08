@@ -23,7 +23,7 @@ sub gen_re_match_all_anyorder {
    my @reraw;
    for (@_) {  # construct regex matching lines containing, in any order, ALL of @_
       my $qm = quotemeta( $_ );            #  match fragment
-      $qm = "$bound_re$qm$bound_re" if m=[A-Z0-9]+=; # all caps? match word
+      $qm = "$bound_re$qm$bound_re" if m=[A-Z]= && ! m=[a-z]=; # all caps? match word
       push @reraw, "(?=.*$qm)"; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       }
    my $rv = '^(?i)' . join('',@reraw) . '.*$'; # print "\npat=$rv\n";
