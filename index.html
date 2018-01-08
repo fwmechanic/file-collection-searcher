@@ -1,13 +1,24 @@
+<doctype HTML>
 <HTML>
-<TITLE>File-Collection-Searcher</TITLE>
+<head>
+   <title>File-Collection-Searcher</title>
+</head>
 <BODY>
 <b>Find books whose name match <i>all</i> terms you provide</b><p>
 <ol>
-<li>a <b>term</b> is a sequence of non-space characters; 'PDF', '65jw' and 'golang' are terms.</li>
+<li>a <b>term</b> is a sequence of non-space characters; 'PDF', '65jw', 'C++' and 'golang' are terms.</li>
 <li>term-matching is always case-insensitive.</li>
-<li>an ALL-CAPS term matches only whole words in book names</li>
+<li>an ALL-CAPS term matches only whole words in book names.</li>
 <li>a non-ALL-CAPS term matches a book name containing the same term text.</li>
 <li>an ebook-file's extension (e.g. pdf, epub) is part of its name and thus a word search candidate.</li>
+<li>Book filename notes and search suggestions:
+  <ul>
+   <li>Fiction book names seldom contain copyright year, and title may be truncated (author name is typically most reliable).</li>
+   <li>Non-fiction book names generally DO NOT contain author name.</li>
+   <li>[Non-fiction] Edition info ("2e", "3e", etc.) is optional.</li>
+   <li>It's rarely useful to search for copyright year or edition as these are optional and even if present are not guaranteed to be correct.</li>
+   <li>DON'T GIVE UP -- keep trying: start general and make search more specific to eliminate uninteresting items.</li>
+  </ul>
 <li>EX: 'bo PDF' matches 'book.pdf' but not 'bopdfok.epub'. 'my p' matches 'my.book.pdf' and 'myopia.epub'</li>
 </ol>
 <FORM ACTION="/cgi/search-files">
