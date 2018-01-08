@@ -18,12 +18,13 @@ my $maxCopyrightYr = do {
    $year + 1;  # (c)Y+1 books appear late in year Y
    };
 
+my $bound_re = '(?:\b|[_])';
 sub gen_re_match_all_anyorder {
    my @reraw;
    for (@_) {  # construct regex matching lines containing, in any order, ALL of @_
       my $qm = quotemeta( $_ );            #  match fragment
-      $qm = qq(\\b$qm\\b) if m=[A-Z0-9]+=; # all caps? match word
-      push @reraw, qq[(?=.*$qm)]; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
+      $qm = "$bound_re$qm$bound_re" if m=[A-Z0-9]+=; # all caps? match word
+      push @reraw, "(?=.*$qm)"; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       }
    my $rv = '^(?i)' . join('',@reraw) . '.*$'; # print "\npat=$rv\n";
    return $rv;
@@ -42,11 +43,11 @@ sub search_files { my ($isamatch,$pat) = @_;
          my $tgt = ".$fnm.";
          if( $tgt =~ m=$pat= ) { # print "$tgt\n" ;
             ++$num_matches;
-            my ($base,$type) = $fnm =~ m=(.+?)((?:.medtype|_cropped)?\.[^\.]+)$=; # print "B=$base,T=$type\n";
+            my ($base,$type) = $fnm =~ m=(.+?)((?:.[Cc]ode|.medtype|_cropped)?\.[^\.]+)$=; # print "B=$base,T=$type\n";
             my $yr = do {
-               my @yr4s = $tgt =~ m=\b(\d{4})(?:\b|[_])=g; # normally, (c) year is given as yyyy
-               my @more = $tgt =~ m=\b(\d{4})\d{2}(?:\b|[_])=g; push( @yr4s, @more ); # but rarely I give yyyymm
-                  @more = $tgt =~ m=\b(\d{4})\d{4}(?:\b|[_])=g; push( @yr4s, @more ); # and rarely I give yyyymmdd
+               my @yr4s = $tgt =~ m=$bound_re(\d{4})$bound_re=g; # normally, (c) year is given as yyyy
+               my @more = $tgt =~ m=$bound_re(\d{4})\d{2}$bound_re=g; push( @yr4s, @more ); # but rarely I give yyyymm
+                  @more = $tgt =~ m=$bound_re(\d{4})\d{4}$bound_re=g; push( @yr4s, @more ); # and rarely I give yyyymmdd
                my $rv = '';
                if( @yr4s ) {
                   my $max = 0;
@@ -100,7 +101,7 @@ print $qy->start_html(
       -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
       );
 # print $qy->Dump();
-print $qy->h3("Found",($num_matches||"no"),"matches of '$norm_search_terms' among",$num_cands,"candidates"), "\n";
+print $qy->h3("Found",($num_matches||"no"),"matches of '$norm_search_terms' among",$num_cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
 for my $yr (reverse sort keys %dated_rslts) { # print "$yr:\n";
    print $qy->h3("&copy;".($yr || "<i>unknown</i>")), "\n";
    my @lis;
