@@ -94,12 +94,11 @@ that, PER QUERY, created (by scanning a Samba share) a list of candidate
 files under "treelocn", then performing string searching on the list of
 candidate files.
 
-This worked "OK" ("better than nothing") for many years, but (a) didn't scale
+This "worked OK" (IOW, was "better than nothing") for many years, but (a) didn't scale
 well as my ebook collection's size increased: the performance of a Windows client
 scanning a dir tree hosted on a Linux/Samba server was poor at best, and (b) its
 use required the presence of the search program on the client, which made it
-useless to anyone but me; other (W)LAN clients were blocked from accessing this
-content.
+useless to anyone but me.
 
 A recent performance optimization was to have the server periodically run `find`
 to create a file containing the candidate file list in the root of the treelocn
@@ -127,16 +126,19 @@ code, more bugs, more inexplicable/magical behavior (which may change in the
 next framework release (i.e. `apt-get upgrade`))).  Using the Perl 5 CGI
 module is about as far as I'm willing to go in this direction.
 
-As noted above, the earlier (client) versions of this software were written in
-Lua, then Perl 5 (which I've used, off and on, for decades), and with a very
-recent attempt to use go/golang (1.9.2) having been abandoned due to poor
-performance related to string searching (since golang's regexes are incompatible
-with Perl regexes and in particular the '(?=...)' construct which is used above
-to construct a single regex that checks for matches of ALL word/frag matches
-occurring in any order in the target string, in golang you're forced to
-explicitly loop over a slice of regexes (one per word/frag), resulting in the
-search process taking > 10x longer (yes I was amazed) vs. my Perl
-implementation), I have chosen to stick with popular necessary external
-components (nginx), obsolescent technologies (CGI) and a frequently denigrated
-but "tried and true" "mature" language (Perl 5).  Hey, I could've used TCL
+As noted above, the earlier (client) versions of this software were written
+in Lua, then Perl 5 (which I've used, off and on, for decades), and with a
+very recent attempt to use go/golang (1.9.2) having been abandoned due to
+poor performance related to string searching[1] vs. my Perl implementation),
+I have chosen to stick with mainstream single-purpose external components
+(nginx), obsolescent technologies (CGI) and a frequently denigrated but
+"tried and true" "mature" language (Perl 5).  Hey, I could've used TCL
 (naaaw)!
+
+[1] golang's regexes != perlre and in particular my implementation takes
+advantage of the perlre-specific '(?=...)' construct which is allows creation
+of a single regex that checks for matches of ALL word/frag matches occurring
+in any order in the target string.  To achieve the same end in golang created
+a slice of regexes, one per word/frag, and, _per input line_, loop over this
+slice until the first miss is encountered, resulting in the search process
+taking > 10x longer vs. Perl (yes I was amazed).

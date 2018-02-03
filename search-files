@@ -18,10 +18,13 @@ my $maxCopyrightYr = do {
    $year + 1;  # (c)Y+1 books appear late in year Y
    };
 
+my %tok_remap = ( and => 'N', 'c#' => 'CSHARP', 'f#' => 'FSHARP' );
+
 my $bound_re = '(?:\b|[_])';
 sub gen_re_match_all_anyorder {
    my @reraw;
    for (@_) {  # construct regex matching lines containing, in any order, ALL of @_
+      $_ = $tok_remap{lc $_} if exists $tok_remap{lc $_};
       my $qm = quotemeta( $_ );            #  match fragment
       $qm = "$bound_re$qm$bound_re" if m=[A-Z]= && ! m=[a-z]=; # all caps? match word
       push @reraw, "(?=.*$qm)"; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
@@ -91,7 +94,7 @@ use CGI;
 my $qy = CGI->new; my $norm_search_terms;
 {
 my $isamatch    = "[".      ($qy->Vars->{search_scope} // 'b') ."]"; # default to Book search
-my @search_keys = split(' ',($qy->Vars->{search_keys } // '' )    );
+my @search_keys = split(qr=[\s[:punct:]]+=,($qy->Vars->{search_keys } // '' )    ); # '
 $norm_search_terms = join(' ',@search_keys);
 search_files( $isamatch, gen_re_match_all_anyorder( @search_keys ) );
 }
