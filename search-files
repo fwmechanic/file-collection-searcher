@@ -7,6 +7,8 @@ $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in sheb
 # testing cmdlines using http://perldoc.perl.org/CGI.html#DEBUGGING
 # time ./search-files search_scope=b search_keys='nginx EPUB'
 
+my $showRegex = 0;
+
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
    { isa => 'b', fsroot=>q(/mnt/smb/pri/data/public/ebooks), webroot=> "/files/ebooks", fo=>q( -type f) },
    { isa => 'm', fsroot=>q(/mnt/smb/pri/data/public/MP3)   , webroot=> "/files/MP3"   , fo=>q( -type d) },
@@ -20,13 +22,14 @@ my $maxCopyrightYr = do {
 
 my %tok_remap = ( and => 'N', 'c#' => 'CSHARP', 'f#' => 'FSHARP' );
 
+my ($bound_re_before,$bound_re_after) = ( '(?:^|[\W_])', '(?:$|[\W_])' ); # can't use \b because $qm may not consist of word chars only
 my $bound_re = '(?:\b|[_])';
 sub gen_re_match_all_anyorder {
    my @reraw;
    for (@_) {  # construct regex matching lines containing, in any order, ALL of @_
       $_ = $tok_remap{lc $_} if exists $tok_remap{lc $_};
       my $qm = quotemeta( $_ );            #  match fragment
-      $qm = "$bound_re$qm$bound_re" if m=[A-Z]= && ! m=[a-z]=; # all caps? match word
+      $qm = "$bound_re_before$qm$bound_re_after" if m=[A-Z]= && ! m=[a-z]=; # all caps? match word
       push @reraw, "(?=.*$qm)"; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       }
    my $rv = '^(?i)' . join('',@reraw) . '.*$'; # print "\npat=$rv\n";
@@ -91,20 +94,22 @@ sub search_files { my ($isamatch,$pat) = @_;
 # all files having the same basename and compress them as above.
 #
 use CGI;
-my $qy = CGI->new; my $norm_search_terms;
+my $qy = CGI->new; my $norm_search_terms; my $regex;
 {
 my $isamatch    = "[". ($qy->Vars->{search_scope} // 'b') ."]"; # default to Book search
 my $skeys = $qy->Vars->{search_keys} // '';
    $skeys =~ s='==g; # ' mimic collection-maintenance file rename
-my @search_keys = split( qr{[-\s:'"]+}, $skeys ); # ' preserve: [+#]
+my @search_keys = split( qr{[-\s,.:'"]+}, $skeys ); # ' preserve: [+#]
 $norm_search_terms = join(' ',@search_keys);
-search_files( $isamatch, gen_re_match_all_anyorder( @search_keys ) );
+$regex = gen_re_match_all_anyorder( @search_keys );
+search_files( $isamatch, $regex );
 }
 print $qy->header;
 print $qy->start_html(
       -title=>$norm_search_terms,
       -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
       );
+print "$regex\n" if $showRegex;
 # print $qy->Dump();
 print $qy->h3("Found",($num_matches||"no"),"matches of '$norm_search_terms' among",$num_cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
 for my $yr (reverse sort keys %dated_rslts) { # print "$yr:\n";
