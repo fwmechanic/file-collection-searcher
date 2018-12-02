@@ -99,7 +99,7 @@ my $qy = CGI->new; my $norm_search_terms; my $regex;
 my $isamatch    = "[". ($qy->Vars->{search_scope} // 'b') ."]"; # default to Book search
 my $skeys = $qy->Vars->{search_keys} // '';
    $skeys =~ s='==g; # ' mimic collection-maintenance file rename
-my @search_keys = split( qr{[-\s,.:'"]+}, $skeys ); # ' preserve: [+#]
+my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
 $norm_search_terms = join(' ',@search_keys);
 $regex = gen_re_match_all_anyorder( @search_keys );
 search_files( $isamatch, $regex );
