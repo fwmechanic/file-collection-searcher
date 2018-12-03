@@ -12,6 +12,7 @@ my $showRegex = 0;
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
    { isa => 'b', fsroot=>q(/mnt/smb/pri/data/public/ebooks), webroot=> "/files/ebooks", fo=>q( -type f) },
    { isa => 'm', fsroot=>q(/mnt/smb/pri/data/public/MP3)   , webroot=> "/files/MP3"   , fo=>q( -type d) },
+   { isa => 'a', fsroot=>q(/mnt/smb/pri/data/public/audiobooks), webroot=> "/files/audiobooks", fo=>q( -type f) },
    );
 
 my $maxCopyrightYr = do {
@@ -36,20 +37,33 @@ sub gen_re_match_all_anyorder {
    return $rv;
    }
 
-my (%dated_rslts,%extra,$num_cands,$num_matches); # return values from search_files() in these global vars  :-(
+my ($count_uniq_cands,$cands,$matches) = 0;
+my (%dated_rslts,%extra,%unique_cands,%unique_matches); # return values from search_files() in these global vars  :-(
 sub search_files { my ($isamatch,$pat) = @_;
    for my $hr ( @treelocns ) {
       next unless $hr->{isa} =~ m=$isamatch=;
       my ($fsroot,$webroot,$findopts) = @{$hr}{qw(fsroot webroot fo)}; # print "\nfsroot=$fsroot\n";
       open( my $ifh, "cd $fsroot && find . $findopts|" ) || die "Can't open `find $fsroot $findopts`: $!";
       while ( my $line = <$ifh> ) {
-         ++$num_cands;
          chomp $line;
          my ($fnm) = $line =~ m=([^/]+)$=; # print "$fnm\n";
          my $tgt = ".$fnm.";
+         my ($base,$type);
+         if( $count_uniq_cands ) {
+            ($base,$type) = $fnm =~ m=(.+?)((?:.[Cc]ode|.medtype|_cropped)?\.[^\.]+)$=; # print "B=$base,T=$type\n";
+            ++$unique_cands{$base};
+            }
+         else {
+            ++$cands;
+            }
          if( $tgt =~ m=$pat= ) { # print "$tgt\n" ;
-            ++$num_matches;
-            my ($base,$type) = $fnm =~ m=(.+?)((?:.[Cc]ode|.medtype|_cropped)?\.[^\.]+)$=; # print "B=$base,T=$type\n";
+            if( $count_uniq_cands ) {
+               ++$unique_matches{$base};
+               }
+            else {
+               ($base,$type) = $fnm =~ m=(.+?)((?:.[Cc]ode|.medtype|_cropped)?\.[^\.]+)$=; # print "B=$base,T=$type\n";
+               ++$matches;
+               }
             my $yr = do {
                my @yr4s = $tgt =~ m=$bound_re(\d{4})$bound_re=g; # normally, (c) year is given as yyyy
                my @more = $tgt =~ m=$bound_re(\d{4})\d{2}$bound_re=g; push( @yr4s, @more ); # but rarely I give yyyymm
@@ -96,13 +110,17 @@ sub search_files { my ($isamatch,$pat) = @_;
 use CGI;
 my $qy = CGI->new; my $norm_search_terms; my $regex;
 {
-my $isamatch    = "[". ($qy->Vars->{search_scope} // 'b') ."]"; # default to Book search
+my $isamatch    = "[". ($qy->Vars->{search_scope} // 'ba') ."]"; # default to Book search
 my $skeys = $qy->Vars->{search_keys} // '';
    $skeys =~ s='==g; # ' mimic collection-maintenance file rename
 my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
 $norm_search_terms = join(' ',@search_keys);
 $regex = gen_re_match_all_anyorder( @search_keys );
 search_files( $isamatch, $regex );
+if( $count_uniq_cands ) {
+   $cands   = scalar keys %unique_cands;
+   $matches = scalar keys %unique_matches;
+   }
 }
 print $qy->header;
 print $qy->start_html(
@@ -111,7 +129,7 @@ print $qy->start_html(
       );
 print "$regex\n" if $showRegex;
 # print $qy->Dump();
-print $qy->h3("Found",($num_matches||"no"),"matches of '$norm_search_terms' among",$num_cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
+print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
 for my $yr (reverse sort keys %dated_rslts) { # print "$yr:\n";
    print $qy->h3("&copy;".($yr || "<i>unknown</i>")), "\n";
    my @lis;
