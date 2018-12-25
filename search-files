@@ -14,10 +14,10 @@ my $showRegex = 0;
 
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
    # align with /etc/nginx/sites-enabled/default
-   { isa => 'b', fsroot=>'/mnt/smb/pri/data/public/ebooks'         , webroot=> '/files/ebooks'          , ft=>'f' },
-   { isa => 'm', fsroot=>'/mnt/smb/pri/data/public/MP3'            , webroot=> '/files/mp3'             , ft=>'d' },
-   { isa => 'a', fsroot=>'/mnt/smb/pri/data/public/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
-   { isa => 'v', fsroot=>'/mnt/smb/pri/data/public/Video.Downloads', webroot=> '/files/video-downloads' , ft=>'d' },
+   { isa => 'b', cat => 'Books'     , fsroot=>'/mnt/smb/pri/data/public/ebooks'         , webroot=> '/files/ebooks'          , ft=>'f' },
+   { isa => 'm', cat => 'Music'     , fsroot=>'/mnt/smb/pri/data/public/MP3'            , webroot=> '/files/mp3'             , ft=>'d' },
+   { isa => 'a', cat => 'Audiobooks', fsroot=>'/mnt/smb/pri/data/public/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
+   { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/pri/data/public/Video.Downloads', webroot=> '/files/video-downloads' , ft=>'d' },
    );
 
 my $maxCopyrightYr = do {
@@ -43,9 +43,9 @@ sub gen_re_match_all_anyorder {
    }
 
 my ($count_uniq_cands,$cands,$matches) = 0;
-my (%dated_rslts,%extra,%unique_cands,%unique_matches); # return values from search_files() in these global vars  :-(
-sub search_files { my ($qy, $isa,$fsroot,$webroot,$findtype,$pat) = @_;
-   my %ft_f_keys;
+my (%unique_cands,%unique_matches); # return ancillary values from search_files() in these global vars  :-(
+sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
+   my (%rv,%ft_f_keys,%ext_variant);
    my $findcmd = "cd $fsroot && find . -type $findtype";
    open( my $ifh, $findcmd . '|' ) || die "Can't open `$findcmd`: $!";
    while ( my $line = <$ifh> ) {
@@ -93,30 +93,25 @@ sub search_files { my ($qy, $isa,$fsroot,$webroot,$findtype,$pat) = @_;
          my $ofnm = "$fsroot/$line"; $ofnm =~ s=/\./=/=; # print "$ofnm\n" ;
          my $link; ($link = $ofnm) =~ s=^$fsroot=$webroot=; # print "link=$link\n";
          if( $findtype eq 'd' || ! $type ) {
-            my $key = $link;  # print "key=",$key,"\n";
-            my $reldir; ($reldir = $link) =~ s=^$webroot/==; # print "link=$link\n";
-            push @{$dated_rslts{$yr}}, "$isa: " . $qy->a({href=>"$link"},$reldir);
+            my $reldir; ($reldir = $link) =~ s=^$webroot/==;
+            push @{$rv{$yr}}, $qy->a({href=>"$link"},$reldir);
             }
          else {
-            my $key = substr( $link, 0, - length $type ); # print "key=",$key,"\n";
-            # print "$line - $link - $key<p>" unless $type;
+            my $key = substr( $link, 0, - length $type );
             $ft_f_keys{$key} = $yr;
-            push @{$extra{$key}}, $type;
+            push @{$ext_variant{$key}}, $type;
             }
          }
       }
-   if( $findtype eq 'f' ) {  # fold extras into dated_rslts
-      for my $link_wo_type (sort keys %ft_f_keys) {
-         my @lwtrs = reverse sort @{$extra{$link_wo_type}};  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
-         my ($fnm) = $link_wo_type =~ m=([^/]+)$=;
-         my @out = ( $fnm );
-         for my $type ( @lwtrs ) {
-            push @out, $qy->a({href=>"$link_wo_type$type"},$type),"\n";
-            }
-         my $yr = $ft_f_keys{$link_wo_type};
-         push @{$dated_rslts{$yr}}, "$isa: " . join(' ',@out);
+   for my $link_wo_ext (sort keys %ft_f_keys) {  # fold ext_variants into rv
+      my @out = $link_wo_ext =~ m=([^/]+)$=;
+      for my $ext ( reverse sort @{$ext_variant{$link_wo_ext}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
+         push @out, $qy->a({href=>"$link_wo_ext$ext"},$ext),"\n";
          }
+      my $yr = $ft_f_keys{$link_wo_ext};
+      push @{$rv{$yr}}, join(' ',@out);
       }
+   return \%rv;
    }
 
 #
@@ -159,7 +154,7 @@ print "$pat\n" if $showRegex;
 for my $hr ( @treelocns ) {
    my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
    next unless $isa =~ m=[$isaset]=;
-   search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+   $hr->{matches} = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
    }
 if( $count_uniq_cands ) {
    $cands   = scalar keys %unique_cands;
@@ -168,9 +163,22 @@ if( $count_uniq_cands ) {
 }
 # print $qy->Dump();
 print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
-for my $yr (reverse sort keys %dated_rslts) { # print "$yr:\n";
-   print $qy->h3("&copy;".($yr || "<i>unknown</i>")), "\n";
-   print $qy->ol( map { $qy->li( $_ ); } sort @{$dated_rslts{$yr}} ), "\n";
+for my $hr ( @treelocns ) {
+   my $ms = $hr->{matches};
+   if( scalar keys %{$ms} ) {
+      my $cat = $hr->{cat};
+      print $qy->a({href=>"#$cat"},$cat),"\n";
+      }
+   }
+for my $hr ( @treelocns ) {
+   my $ms = $hr->{matches};
+   if( scalar keys %{$ms} ) {
+      print $qy->a({name=>$hr->{cat}}),"\n";
+      for my $yr (reverse sort keys %{$ms}) { # print "$yr:\n";
+         print $qy->h3( $hr->{cat} . " &copy;".($yr || "<i>unknown</i>")), "\n";
+         print $qy->ol( map { $qy->li( $_ ); } sort @{$ms->{$yr}} ), "\n";
+         }
+      }
    }
 print $qy->end_html;
 exit 0;
