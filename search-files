@@ -82,6 +82,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
             my @yr4s = $tgt =~ m=$bound_re(\d{4})$bound_re=g; # normally, (c) year is given as yyyy
             my @more = $tgt =~ m=$bound_re(\d{4})\d{2}$bound_re=g; push( @yr4s, @more ); # but rarely I give yyyymm
                @more = $tgt =~ m=$bound_re(\d{4})\d{4}$bound_re=g; push( @yr4s, @more ); # and rarely I give yyyymmdd
+               my ($yr2) = $tgt =~ m=$bound_re(\d{2})\.\d{2}$bound_re=g; push( @yr4s, $yr2+2000 ) if $yr2; # but rarely I give yyyymm
             my $rv = '';
             if( @yr4s ) {
                my $max = 0;
@@ -173,9 +174,10 @@ for my $hr ( @treelocns ) {
 for my $hr ( @treelocns ) {
    my $ms = $hr->{matches};
    if( scalar keys %{$ms} ) {
-      print $qy->a({name=>$hr->{cat}}),"\n";
+      my $anch = { id => $hr->{cat} };
       for my $yr (reverse sort keys %{$ms}) { # print "$yr:\n";
-         print $qy->h3( $hr->{cat} . " &copy;".($yr || "<i>unknown</i>")), "\n";
+         print $qy->h3( $anch, $hr->{cat} . " &copy;".($yr || "<i>unknown</i>") ), "\n";
+         $anch = {};
          print $qy->ol( map { $qy->li( $_ ); } sort @{$ms->{$yr}} ), "\n";
          }
       }
