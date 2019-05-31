@@ -1,7 +1,15 @@
 #!/usr/bin/perl -T
 use strict;
 use warnings;
+use Time::HiRes qw( time );
 use Data::Dumper;
+
+my $tm_start = time();
+my $tm_first_fnm = 0;
+my $tm_srch_done;
+my $tm_req_done;
+
+my $et_srch = 0;
 
 $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in shebang)
 
@@ -49,6 +57,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    my $findcmd = "cd $fsroot && find . -type $findtype";
    open( my $ifh, $findcmd . '|' ) || die "Can't open `$findcmd`: $!";
    while ( my $line = <$ifh> ) {
+      $tm_first_fnm = time() if $tm_first_fnm == 0;
       chomp $line;
       my ($fnm) = $line =~ m=([^/]+)$=; # print "$fnm\n";
       my $tgt = ".$fnm.";
@@ -157,6 +166,7 @@ for my $hr ( @treelocns ) {
    next unless $isa =~ m=[$isaset]=;
    $hr->{matches} = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
    }
+$tm_srch_done = time();
 if( $count_uniq_cands ) {
    $cands   = scalar keys %unique_cands;
    $matches = scalar keys %unique_matches;
@@ -182,5 +192,15 @@ for my $hr ( @treelocns ) {
          }
       }
    }
+$tm_req_done = time();
+sub pr_et_us { my ($et) = @_;
+   return sprintf("%.6f\n", $et);
+   }
+my $et_total     = $tm_req_done  - $tm_start;
+my $et_first_fnm = $tm_first_fnm - $tm_start;
+my $et_srch      = $tm_srch_done - $tm_first_fnm;
+my $et_post_srch = $tm_req_done  - $tm_srch_done;
+print $qy->ol( [ "Treq: ".pr_et_us($et_total), "Tfirst-fnm:".pr_et_us($et_first_fnm), "Tsrch: ".pr_et_us($et_srch), "Tpost-srch: ".pr_et_us($et_post_srch)] ), "\n";
+
 print $qy->end_html;
 exit 0;
