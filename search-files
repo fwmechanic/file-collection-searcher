@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use Time::HiRes qw( time );
 use Data::Dumper;
+use Cwd;
+my $pwd = getcwd;
+my $username = getpwuid($<);
+my $cachedir = "/cgi-app-cache/search-files";  # ugly hack: these two dirs are OWNED and writable only by www-data
 
 my $tm_start = time();
 my $tm_first_fnm = 0;
@@ -54,8 +58,19 @@ my ($count_uniq_cands,$cands,$matches) = 0;
 my (%unique_cands,%unique_matches); # return ancillary values from search_files() in these global vars  :-(
 sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    my (%rv,%ft_f_keys,%ext_variant);
-   my $findcmd = "cd $fsroot && find . -type $findtype";
-   open( my $ifh, $findcmd . '|' ) || die "Can't open `$findcmd`: $!";
+   # print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
+   # print STDERR "fsroot=$fsroot\n";
+   my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
+   # print STDERR "fsrt_tail=$fsrt_tail\n";
+   my ($modlogfnm,$findoutfnm) = ("$fsroot/modify.log", "$cachedir$fsrt_tail");
+   if( -f $findoutfnm && -f $modlogfnm && -C $findoutfnm > -C $modlogfnm ) {
+      print STDERR "HIT! $findoutfnm newer than $modlogfnm\n";
+      }
+   else {
+      my $findcmd = "cd $fsroot && find . -type $findtype > $findoutfnm";
+      system( $findcmd );
+      }
+   open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
    while ( my $line = <$ifh> ) {
       $tm_first_fnm = time() if $tm_first_fnm == 0;
       chomp $line;
@@ -198,7 +213,7 @@ sub pr_et_us { my ($et) = @_;
    }
 my $et_total     = $tm_req_done  - $tm_start;
 my $et_first_fnm = $tm_first_fnm - $tm_start;
-my $et_srch      = $tm_srch_done - $tm_first_fnm;
+   $et_srch      = $tm_srch_done - $tm_first_fnm;
 my $et_post_srch = $tm_req_done  - $tm_srch_done;
 print $qy->ol( [ "Treq: ".pr_et_us($et_total), "Tfirst-fnm:".pr_et_us($et_first_fnm), "Tsrch: ".pr_et_us($et_srch), "Tpost-srch: ".pr_et_us($et_post_srch)] ), "\n";
 

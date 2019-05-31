@@ -142,3 +142,22 @@ in any order in the target string.  To achieve the same end in golang created
 a slice of regexes, one per word/frag, and, _per input line_, loop over this
 slice until the first miss is encountered, resulting in the search process
 taking > 10x longer vs. Perl (yes I was amazed).
+
+*Update 20190530*: performance of the find command imploded when run on
+circa 60K file-count dir tree: > 25 seconds to immediately re-run a search
+(_on a spinning HDD_ with a hot dir cache): my guess is the dir info for 60K
+files overflows some Linux filesystem/directory cache.
+
+After suffering with this situation for too long, I hacked up the following:
+
+ * Created a shell script `modifylog` that runs `inotifywait -r -m $dir` ($dir contains 60+K files),
+   logging only _modifying_ events to file `$dir/modify.log`.
+    * EX: `./modifylog /mnt/smb/pri/data/public/ebooks/`
+    * for now, this script must be invoked _manually_.
+ * Because the user which `search-files` runs as (www-data) does not have write access to the dir containing `search-files`, and because that user does not have a /home/ dir, a dedicated directory for this user to write find-cache files must be created.
+    * Created dirs `/cgi-app-cache/search-files` and gave user www-data exclusive write access to these.
+ * Modified `search-files` script to write its (per dir tree) `find` output to `/cgi-app-cache/search-files/$dir-leafname`
+ * Modified `search-files` script to read `find` output from `/cgi-app-cache/search-files/$dir-leafname`.
+ * Modified `search-files` script to run `find` (overwriting `/cgi-app-cache/search-files/$dir-leafname`) iff mtime of file `$dir/modify.log` is newer than mtime of `/cgi-app-cache/search-files/$dir-leafname`.
+
+This brings performance back down to 325mS; not awesome, but massively better than 25,000mS!
