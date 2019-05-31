@@ -9,11 +9,9 @@ my $username = getpwuid($<);
 my $cachedir = "/cgi-app-cache/search-files";  # ugly hack: these two dirs are OWNED and writable only by www-data
 
 my $tm_start = time();
-my $tm_first_fnm;
-my $tm_srch_done;
-my $tm_req_done;
 
 my $et_srch = 0;
+my $et_find = 0;
 
 $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in shebang)
 
@@ -31,6 +29,8 @@ my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp ma
    { isa => 'a', cat => 'Audiobooks', fsroot=>'/mnt/smb/pri/data/public/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
    { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/pri/data/public/Video.Downloads', webroot=> '/files/video-downloads' , ft=>'d' },
    );
+
+sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
 
 my $maxCopyrightYr = do {
    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime();
@@ -63,16 +63,19 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
    my ($modlogfnm,$findoutfnm) = ("$fsroot/modify.log", "$cachedir/$fsrt_tail");
-   if( -f $findoutfnm && -f $modlogfnm && -C $findoutfnm > -C $modlogfnm ) {
+   my ($mtime_modlog,$mtime_findout) = (mtime($modlogfnm),mtime($findoutfnm));
+   if( $mtime_modlog < $mtime_findout ) {
       print STDERR "HIT! $findoutfnm newer than $modlogfnm\n";
       }
    else {
       my $findcmd = "cd $fsroot && find . -type $findtype > $findoutfnm";
+      my $t_find_start = time();
       system( $findcmd );
+      $et_find += time() - $t_find_start;
       }
    open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
+   my $t_srch_start = time();
    while ( my $line = <$ifh> ) {
-      $tm_first_fnm //= time();
       chomp $line;
       my ($fnm) = $line =~ m=([^/]+)$=; # print "$fnm\n";
       my $tgt = ".$fnm.";
@@ -136,6 +139,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       my $yr = $ft_f_keys{$link_wo_ext};
       push @{$rv{$yr}}, join(' ',@out);
       }
+   $et_srch += time() - $t_srch_start;
    return \%rv;
    }
 
@@ -181,7 +185,6 @@ for my $hr ( @treelocns ) {
    next unless $isa =~ m=[$isaset]=;
    $hr->{matches} = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
    }
-$tm_srch_done = time();
 if( $count_uniq_cands ) {
    $cands   = scalar keys %unique_cands;
    $matches = scalar keys %unique_matches;
@@ -207,15 +210,9 @@ for my $hr ( @treelocns ) {
          }
       }
    }
-$tm_req_done = time();
-sub pr_et_us { my ($et) = @_;
-   return sprintf("%.6f\n", $et);
-   }
-my $et_total     = $tm_req_done  - $tm_start;
-my $et_first_fnm = $tm_first_fnm - $tm_start;
-   $et_srch      = $tm_srch_done - $tm_first_fnm;
-my $et_post_srch = $tm_req_done  - $tm_srch_done;
-print $qy->ol( [ "Treq: ".pr_et_us($et_total), "Tfirst-fnm:".pr_et_us($et_first_fnm), "Tsrch: ".pr_et_us($et_srch), "Tpost-srch: ".pr_et_us($et_post_srch)] ), "\n";
 
+sub pr_et_us { return sprintf("%.6f", $_[0]); }
+my $et_total = time() - $tm_start;
+print $qy->ol( [ "Toverall: ".pr_et_us($et_total), " Tfind: ".pr_et_us($et_find), " Tsrch: ".pr_et_us($et_srch) ] ), "\n";
 print $qy->end_html;
 exit 0;
