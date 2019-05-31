@@ -9,7 +9,7 @@ my $username = getpwuid($<);
 my $cachedir = "/cgi-app-cache/search-files";  # ugly hack: these two dirs are OWNED and writable only by www-data
 
 my $tm_start = time();
-my $tm_first_fnm = 0;
+my $tm_first_fnm;
 my $tm_srch_done;
 my $tm_req_done;
 
@@ -62,7 +62,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
-   my ($modlogfnm,$findoutfnm) = ("$fsroot/modify.log", "$cachedir$fsrt_tail");
+   my ($modlogfnm,$findoutfnm) = ("$fsroot/modify.log", "$cachedir/$fsrt_tail");
    if( -f $findoutfnm && -f $modlogfnm && -C $findoutfnm > -C $modlogfnm ) {
       print STDERR "HIT! $findoutfnm newer than $modlogfnm\n";
       }
@@ -72,7 +72,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       }
    open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
    while ( my $line = <$ifh> ) {
-      $tm_first_fnm = time() if $tm_first_fnm == 0;
+      $tm_first_fnm //= time();
       chomp $line;
       my ($fnm) = $line =~ m=([^/]+)$=; # print "$fnm\n";
       my $tgt = ".$fnm.";
