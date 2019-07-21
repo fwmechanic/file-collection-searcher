@@ -160,4 +160,11 @@ After suffering with this situation for too long, I hacked up the following:
  * Modified `search-files` script to read `find` output from `/cgi-app-cache/search-files/$dir-leafname`.
  * Modified `search-files` script to run `find` (overwriting `/cgi-app-cache/search-files/$dir-leafname`) iff mtime of file `$dir/modify.log` is newer than mtime of `/cgi-app-cache/search-files/$dir-leafname`.
 
+
+./modifylog /mnt/smb/pri/data/public/ebooks
+./modifylog /mnt/smb/pri/data/public/MP3
+./modifylog /mnt/smb/pri/data/public/audiobooks
+./modifylog /mnt/smb/pri/data/public/Video.Downloads
+
+
 This brings performance back down to 325mS; not awesome, but massively better than 25,000mS!

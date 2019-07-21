@@ -4,7 +4,7 @@ die() { printf %s "${@+$@$'\n'}" 1>&2 ; exit 1 ; }
 
 [[ "$1" ]] || die "missing (dirnm) parameter"
 [[ -d "$1" ]] || die "$1 is not a dir"
-logfnm="$1/modify.log"
+logfnm="$1/.modify.log"
 writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")"
 [[ -z "$writerpid" ]] || die "exiting: pid $writerpid has opened $logfnm"
 
