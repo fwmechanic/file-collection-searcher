@@ -147,8 +147,9 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       }
    for my $link_wo_ext (sort keys %ft_f_keys) {  # fold ext_variants into rv
       my @out = $link_wo_ext =~ m=([^/]+)$=;
+      my $lwx = $link_wo_ext =~ s{([#])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '#' only FTTB)
       for my $ext ( reverse sort @{$ext_variant{$link_wo_ext}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
-         push @out, $qy->a({href=>"$link_wo_ext$ext"},$ext),"\n";
+         push @out, $qy->a({href=>"$lwx$ext"},$ext),"\n";
          }
       my $yr = $ft_f_keys{$link_wo_ext};
       push @{$rv{$yr}}, join(' ',@out);
