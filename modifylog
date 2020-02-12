@@ -9,5 +9,5 @@ writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")"
 [[ -z "$writerpid" ]] || die "exiting: pid $writerpid has opened $logfnm"
 
 # https://stackoverflow.com/a/49183740 orig: ( cd /; umask 0; setsid your_script.sh </dev/null &>/dev/null & ) &
-( setsid inotifywait --recursive --monitor --event close_write --event moved_to --exclude "$logfnm" "$1" --outfile "$logfnm" </dev/null &>/dev/null & ) &
+( cd /; umask 0; setsid inotifywait --recursive --monitor --event close_write --event moved_to --exclude "$logfnm" "$1" --outfile "$logfnm" </dev/null &>/dev/null & ) &
 echo "started"
