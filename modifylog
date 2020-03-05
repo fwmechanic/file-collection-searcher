@@ -7,7 +7,16 @@ die() { printf %s "${@+$@$'\n'}" 1>&2 ; exit 1 ; }
 logfnm="$1/.modify.log"
 writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")"
 [[ -z "$writerpid" ]] || die "exiting: pid $writerpid has opened $logfnm"
+namei -l "$logfnm"
 
 # https://stackoverflow.com/a/49183740 orig: ( cd /; umask 0; setsid your_script.sh </dev/null &>/dev/null & ) &
 ( cd /; umask 0; setsid inotifywait --recursive --monitor --event close_write --event moved_to --exclude "$logfnm" "$1" --outfile "$logfnm" </dev/null &>/dev/null & ) &
-echo "started"
+writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")" ; echo "$logfnm writerpid=$writerpid"
+sleep 3
+# note that if the next line shows the writerpid to have disappeared, its likely that
+#
+#   Failed to watch /mnt/smb/5t_a/data/Video; upper limit on inotify watches reached!
+#   Please increase the amount of inotify watches allowed per user via `cat /proc/sys/fs/inotify/max_user_watches'.
+# see e.g. https://unix.stackexchange.com/questions/13751/kernel-inotify-watch-limit-reached
+#
+writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")" ; echo "$logfnm writerpid=$writerpid"

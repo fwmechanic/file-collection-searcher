@@ -161,10 +161,16 @@ After suffering with this situation for too long, I hacked up the following:
  * Modified `search-files` script to run `find` (overwriting `/cgi-app-cache/search-files/$dir-leafname`) iff mtime of file `$dir/modify.log` is newer than mtime of `/cgi-app-cache/search-files/$dir-leafname`.
 
 
+pkill inotifywait
+
+pgrep -l inotifywait
 ./modifylog /mnt/smb/5t_a/data/ebooks
 ./modifylog /mnt/smb/5t_a/data/MP3
 ./modifylog /mnt/smb/5t_a/data/audiobooks
-./modifylog /mnt/smb/5t_a/data/Video.Downloads
+./modifylog /mnt/smb/5t_a/data/Video
+pgrep -l inotifywait
+
+note that if
 
 
 This brings performance back down to 325mS; not awesome, but massively better than 25,000mS!
