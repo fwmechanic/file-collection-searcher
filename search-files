@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Time::HiRes qw( time );
+use Encode;
 use Data::Dumper;
 use Fcntl qw(:flock SEEK_END);
 # use List::Util 'shuffle';
@@ -190,6 +191,13 @@ print $qy->start_html(
 {
 my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
 my $skeys = $qy->Vars->{search_keys} // '';
+   # print(sprintf("%v04X", $skeys), "\n");
+   # {
+   # local $Data::Dumper::Useqq = 1;
+   # print( decode_utf8(Dumper($skeys)) );
+   # print( decode_utf8(encode_utf8($skeys)) );
+   # }
+   $skeys =~ s|&#9830;||g; # remove nasty black-diamond-suit char that is injected when user hits 'back' in browser.
    $skeys =~ s='==g; # ' mimic collection-maintenance file rename
 my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
 $norm_search_terms = join(' ',@search_keys);
