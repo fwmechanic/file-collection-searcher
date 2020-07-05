@@ -30,7 +30,7 @@ my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp ma
    { isa => 'b', cat => 'Books'     , fsroot=>'/mnt/smb/5t_a/data/ebooks'         , webroot=> '/files/ebooks'          , ft=>'f' },
    { isa => 'm', cat => 'Music'     , fsroot=>'/mnt/smb/5t_a/data/MP3'            , webroot=> '/files/mp3'             , ft=>'d' },
    { isa => 'a', cat => 'Audiobooks', fsroot=>'/mnt/smb/5t_a/data/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
-   { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/5t_a/data/Video.Downloads', webroot=> '/files/video-downloads' , ft=>'d' },
+   { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/5t_a/data/Video'          , webroot=> '/files/video-downloads' , ft=>'d' },
    );
 
 sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
