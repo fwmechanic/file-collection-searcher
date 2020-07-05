@@ -195,4 +195,19 @@ After suffering with this situation for too long, I hacked up the following:
 
 This brings performance back down to 325mS; not awesome, but massively better than 25,000mS!
 
-update 20.07: nominal Tsearch = 370mS over 85295 candidates.  This includes whatever execution-performance benefits might have accrued from upgrading my TS140 i3-4130's RAM from 4GB to 16GB a few months ago.
+## Benchmarking
+
+Tsearch has 2 performance varietals:
+  * WW: search includes whole-word-match terms and
+  * !WW: search DOES NOT include any whole-word-match terms
+
+WW searches are noticeably slower than !WW searches.
+
+| Date | # candidates | WW | !WW | Notes |
+| ---- | ------------ | -- | --- | ----- |
+| 20.07 |  85295 | 370 | 210 | 20.03, (TS140 i3-4130) server RAM upgraded from 4GB to 16GB; upgrade from Ubuntu 14.04 is overdue. |
+
+Units
+
+  * candidates: files
+  * WW & !WW: milliseconds
