@@ -18,8 +18,8 @@ is mostly _my_ server, but I hope this tool will remove this exclusivity).
 
 # Setup
 
-On Ubuntu 14.04 (or later, presumably):
-  * run `apt-get install nginx fcgiwrap`
+On Ubuntu 20.04 (or later, presumably):
+  * run `apt-get install nginx fcgiwrap libcgi-pm-perl`
   * set Nginx config (Ubuntu: `/etc/nginx/sites-enabled/default`) with the location of this repo replacing %repo_dir%:
 ```
 server {
@@ -70,6 +70,9 @@ server {
 }
 
 ```
+
+NB: if you edit the above, ya gotta `service nginx restart` for it to take effect!
+
 The above, in combination with the contents of this repo, creates from n
 disjoint content trees on the server, `/mnt/smb/pri/data/public/ebooks` and
 `/mnt/smb/pri/data/public/MP3`, two "static sub-sites", plus a third mapping
@@ -157,7 +160,8 @@ web framework" notch in my belt), and more saliently, _I don't like
 frameworks_ (in fact I prefer to avoid them at all costs: I don't want more
 code, more bugs, more inexplicable/magical behavior (which may change in the
 next framework release (i.e. `apt-get upgrade`))).  Using the Perl 5 CGI
-module is about as far as I'm willing to go in this direction.
+module (which has, between Ubuntu 14.04 and 18.04, been banished from Perl5's
+stdlib) is about as far as I'm willing to go in this direction.
 
 As noted above, the earlier (client) versions of this software were written
 in Lua, then Perl 5 (which I've used, off and on, for decades), and with a
@@ -198,16 +202,17 @@ This brings performance back down to 325mS; not awesome, but massively better th
 ## Benchmarking
 
 Tsearch has 2 performance varietals:
-  * WW: search includes whole-word-match terms and
-  * !WW: search DOES NOT include any whole-word-match terms
+  * WW: search includes whole-word-match (all CAPS) terms and
+  * !WW: search DOES NOT include any whole-word-match (all CAPS) terms
 
 WW searches are noticeably slower than !WW searches.
 
-| Date | # candidates | WW | !WW | Notes |
-| ---- | ------------ | -- | --- | ----- |
-| 20.07 |  85295 | 370 | 210 | 20.03, (TS140 i3-4130) server RAM upgraded from 4GB to 16GB; upgrade from Ubuntu 14.04 is overdue. |
+| Date | haystack | WW | !WW | server | OS |
+| ---- | -------- | -- | --- | ----- | ----- |
+| 20.07 |  85295 | 370 | 210 | TS140 i3-4130 16GB RAM | Ubuntu 14.04(!) |
+| 20.10 |  90202 | 365 | 170 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
 
 Units
 
-  * candidates: files
+  * haystack: # of files
   * WW & !WW: milliseconds
