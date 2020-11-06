@@ -21,9 +21,15 @@ $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in sheb
 # testing cmdlines using http://perldoc.perl.org/CGI.html#DEBUGGING
 # time ./search-files search_scope=b search_keys='nginx EPUB'
 
+# NB:   STDERR -> /var/log/nginx/error.log
+# print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
+
 # see /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
 
+# runtime const behavioral controls:
 my $showRegex = 0;
+my $count_uniq_cands   = 0;  # has major performance impact
+my $count_uniq_matches = 1;  # has no    performance impact
 
 sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
 
@@ -49,38 +55,43 @@ sub gen_re_match_all_anyorder {
    return $rv;
    }
 
-my ($count_uniq_cands,$cands,$matches) = 0;
+#--- following vars accumulate across calls to search_files (are effectively returned by search_files)
+my ($cands,$matches);  # simple counters provide fallback values if ($count_uniq_cands, $count_uniq_matches) are false
 my (%unique_cands,%unique_matches); # return ancillary values from search_files() in these global vars  :-(
+#--- preceding vars accumulate across calls to search_files (are effectively returned by search_files)
+
 sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
-   my (%rv,%ft_f_keys,%ext_variant);
-   # NB:   STDERR -> /var/log/nginx/error.log
-   # print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
-   my ($modlogfnm,$findoutfnm) = ("$fsroot/.modify.log", "$cachedir/$fsrt_tail");
-   { # $semfh is used in case fcgiwrap does not single-thread CGI processes;
-     # this is not tremendously efficient in case of collision, but not awful either
-     # _could_ fail flock immediately (LOCK_NB) and try a different $fsroot to parallel-process find-checking (and worst-case: scanning)
-   my $semfh;
-   if( 1 ) {
-      my $semfnm = "$cachedir/$fsrt_tail.sem";
-      open $semfh, '>', $semfnm or die "abend: cannot open $semfnm for writing: $!\n";
-      flock( $semfh, LOCK_EX )  or die "abend: flock $semfnm failed: $!\n";
-      }
-   my ($mtime_modlog , $mtime_findout) = (mtime($modlogfnm),mtime($findoutfnm));
-   if( $mtime_modlog < $mtime_findout ) {
-      # print STDERR "HIT! $findoutfnm newer than $modlogfnm\n";
-      }
-   else {
-      my $findcmd = "cd $fsroot && find . -type $findtype > $findoutfnm";
-      # print STDERR "running '$findcmd'\n";
-      my $t_find_start = time();
-      system( $findcmd );
-      $et_find += time() - $t_find_start;
-      }
-   close $semfh if $semfh;
+   my $findoutfnm = "$cachedir/$fsrt_tail";
+   {  # $semfh is used in case fcgiwrap does not single-thread CGI processes;
+      # this is not tremendously efficient in case of collision, but not awful either
+      # _could_ fail flock immediately (LOCK_NB) and try a different $fsroot to parallel-process find-checking (and worst-case: scanning)
+      my $semfh;
+      if( 1 ) {
+         my $semfnm = "$cachedir/$fsrt_tail.sem";
+         open $semfh, '>', $semfnm or die "abend: cannot open $semfnm for writing: $!\n";
+         flock( $semfh, LOCK_EX )  or die "abend: flock $semfnm failed: $!\n";
+         }
+      my $modlogfnm = "$fsroot/.modify.log";
+      my ($mtime_modlog , $mtime_findout) = (mtime($modlogfnm),mtime($findoutfnm));
+      if( $mtime_modlog < $mtime_findout ) {
+         # print STDERR "HIT! $findoutfnm newer than $modlogfnm\n";
+         }
+      else {
+         my $findcmd = "cd $fsroot && find . -type $findtype > $findoutfnm";
+         # print STDERR "running '$findcmd'\n";
+         my $t_find_start = time();
+         system( $findcmd );
+         $et_find += time() - $t_find_start;
+         }
+      close $semfh if $semfh;
    }
+   my (%rv,%ft_f_keys,%ext_variant);
+   my $split_fnm_base_type = ($findtype eq 'd')
+      ? sub { ($_[0],''); }
+      : sub { ($_[0] =~ m=(.+?)((?:[_.][Cc]ode|\.medtype|_cropped)?\.[^\.]+)$=); } ;
    open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
    my $t_srch_start = time();
    while ( my $line = <$ifh> ) {
@@ -89,28 +100,18 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       my $tgt = ".$fnm.";
       my ($base,$type);
       if( $count_uniq_cands ) {
-         if( $findtype eq 'd' ) {
-            ($base,$type) = ($fnm,'');
-            }
-         else {
-            ($base,$type) = $fnm =~ m=(.+?)((?:.[Cc]ode|.medtype|_cropped)?\.[^\.]+)$=; # print "B=$base,T=$type\n";
-            }
+         ($base,$type) = $split_fnm_base_type->($fnm);
          ++$unique_cands{$base};
          }
       else {
          ++$cands;
          }
       if( $tgt =~ m=$pat= ) { # print "$tgt\n" ;
-         if( $count_uniq_cands ) {
+         ($base,$type) = $split_fnm_base_type->($fnm) unless $base;
+         if( $count_uniq_matches ) {
             ++$unique_matches{$base};
             }
          else {
-            if( $findtype eq 'd' ) {
-               ($base,$type) = ($fnm,'');
-               }
-            else {
-               ($base,$type) = $fnm =~ m=(.+?)((?:.[Cc]ode|.medtype|_cropped)?\.[^\.]+)$=; # print "B=$base,T=$type\n";
-               }
             ++$matches;
             }
          my $yr = do {
@@ -234,10 +235,9 @@ for my $hr ( @treelocns ) {
    next unless $isa =~ m=[$isaset]=;
    $hr->{matches} = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
    }
-if( $count_uniq_cands ) {
-   $cands   = scalar keys %unique_cands;
-   $matches = scalar keys %unique_matches;
-   }
+
+$cands   = scalar keys %unique_cands   if $count_uniq_cands  ;
+$matches = scalar keys %unique_matches if $count_uniq_matches;
 }
 # print $qy->Dump();
 print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
