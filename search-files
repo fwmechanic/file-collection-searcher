@@ -25,14 +25,6 @@ $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in sheb
 
 my $showRegex = 0;
 
-my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
-   # align with /etc/nginx/sites-enabled/default (must edit as root)
-   { isa => 'b', cat => 'Books'     , fsroot=>'/mnt/smb/5t_a/data/ebooks'         , webroot=> '/files/ebooks'          , ft=>'f' },
-   { isa => 'm', cat => 'Music'     , fsroot=>'/mnt/smb/5t_a/data/MP3'            , webroot=> '/files/mp3'             , ft=>'d' },
-   { isa => 'a', cat => 'Audiobooks', fsroot=>'/mnt/smb/5t_a/data/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
-   { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/5t_a/data/Video'          , webroot=> '/files/video-downloads' , ft=>'d' },
-   );
-
 sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
 
 my $maxCopyrightYr = do {
@@ -189,6 +181,15 @@ print $qy->start_html(
       -title=>$norm_search_terms,
       -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
       );
+
+my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
+   # align with /etc/nginx/sites-enabled/default (must edit as root)
+   { isa => 'b', cat => 'Books'     , fsroot=>'/mnt/smb/5t_a/data/ebooks'         , webroot=> '/files/ebooks'          , ft=>'f' },
+   { isa => 'm', cat => 'Music'     , fsroot=>'/mnt/smb/5t_a/data/MP3'            , webroot=> '/files/mp3'             , ft=>'d' },
+   { isa => 'a', cat => 'Audiobooks', fsroot=>'/mnt/smb/5t_a/data/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
+   { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/5t_a/data/Video'          , webroot=> '/files/video-downloads' , ft=>'d' },
+   );
+
 {
 my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
 my $skeys = $qy->Vars->{search_keys} // '';
