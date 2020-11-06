@@ -61,6 +61,7 @@ my ($count_uniq_cands,$cands,$matches) = 0;
 my (%unique_cands,%unique_matches); # return ancillary values from search_files() in these global vars  :-(
 sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    my (%rv,%ft_f_keys,%ext_variant);
+   # NB:   STDERR -> /var/log/nginx/error.log
    # print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
@@ -81,7 +82,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       }
    else {
       my $findcmd = "cd $fsroot && find . -type $findtype > $findoutfnm";
-      print STDERR "running '$findcmd'\n";
+      # print STDERR "running '$findcmd'\n";
       my $t_find_start = time();
       system( $findcmd );
       $et_find += time() - $t_find_start;

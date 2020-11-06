@@ -3,24 +3,44 @@
 # Description
 
 This is a CGI-Perl project (created in 2017!) that performs a brute-force
-filename-based search of a (media) file collection living in a set of server-local
-directory trees.  I created it to search for files on "the family server" (which
-is mostly _my_ server, but I hope this tool will remove this exclusivity).
+filename-only-based search of a (media) file collection living in a set of
+personal-server-local directory trees.
 
 # Approach & Features
 
-  * This project provides only Read (R in CRUD) services against the collection.
-  * Create/Update/Delete (CRD of CRUD) of the collection is performed out of band via network filesystem operations.
-  * Uses nginx web server to front the Perl-CGI script and serve all media artifacts.
-  * Uses a query-specific Perl regex to compare against each candidate filename in a (cached) list of filenames (output of `find` command) across multiple disjoint directory trees.
+  * Search based only on filename content; a sidecar metadata database is not present.
+  * Provides only Read (R in CRUD) services against the collection.
+  * Uses nginx + [fcgiwrap]( https://www.nginx.com/resources/wiki/start/topics/examples/fcgiwrap/) to front the Perl-CGI script and serve all media artifacts.
+  * Transforms user query parameter(s) into a Perl regex which is compared against each candidate filename in a (cached) list of filenames (output of `find` command) across multiple disjoint directory trees.
   * Uses `inotifywait` daemon output (file touching) to determine whether the cached list of filenames remains valid (else a find scan is performed to update the cache before searching).
-  * Presents output in descending copyright-year order, sorted alphabetically within year, with different formats of the same title presented in compressed format.
+  * Presents output in descending copyright-year order, sorted alphabetically within year, with different formats of the same title coalesced to save UI space.
+
+# Missing Features
+
+  * exclusion of otherwise-hits which match a term (might implement this, but so far its absence has not been painful enough).
+  * Create/Update/Delete (CRD of CRUD) of the collection is performed out of band via network filesystem operations.
+  * Search of media _content_ (EX: within books for e.g. matching words).
+
+# Features Under Consideration
+  * candidate enhanced-search features
+     * "Resolve ER": I often initially obtain "ER" (Early Release) ebooks, which are typically superseded months later by final releases (at which time the "ER" ebooks become superfluous and should be deleted or ignored).
+        * separate CGI script to perform ER-retirement "analysis": for all ER files, find non-ER name-alikes.
+     * "Show all hashtags": ranked by occurrence-count
+     * "find possible (filename) dups"
+  * candidate Update (file-rename) actions:
+     * "add hashtag"
+     * "rmv hashtag"
+  * candidate offsite actions:
+     * "Search-engine search"
+     * "Amazon search"
 
 # Setup
 
 On Ubuntu 20.04 (or later, presumably):
   * run `apt-get install nginx fcgiwrap libcgi-pm-perl`
-  * set Nginx config (Ubuntu: `/etc/nginx/sites-enabled/default`) with the location of this repo replacing %repo_dir%:
+  * set Nginx config (Ubuntu: `/etc/nginx/sites-enabled/default`) as follows
+     * with `%repo_dir%` being replaced by the location of this repo
+     * NB: **if you edit `/etc/nginx/sites-enabled/default`, must `systemctl reload nginx` for it to take effect!**
 ```
 server {
     listen 80 default_server;
@@ -70,8 +90,6 @@ server {
 }
 
 ```
-
-NB: if you edit the above, ya gotta `service nginx restart` for it to take effect!
 
 The above, in combination with the contents of this repo, creates from n
 disjoint content trees on the server, `/mnt/smb/pri/data/public/ebooks` and
