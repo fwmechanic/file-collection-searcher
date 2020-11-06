@@ -203,6 +203,30 @@ my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
 $norm_search_terms = join(' ',@search_keys);
 my $pat = gen_re_match_all_anyorder( @search_keys );
 print "$pat\n" if $showRegex;
+
+# WIP to allow processes colliding on flock $semfh to try the set of sem files in random/shuffle order
+# this would also require separating find-phase from search phase as the following should seek to complete all find-phases before searching
+#
+# my @tlixs;
+# for my $ix (0 .. $#treelocns) {
+#    my ($isa,$fsroot,$webroot,$findtype) = @{$treelocns[$ix]}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
+#    next unless $isa =~ m=[$isaset]=;
+#    push @tlixs, $ix;
+#    }
+# @tlixs = shuffle(@tlixs);
+# while( scalar @tlixs ) {
+#    for my $ix (0 .. $#tlixs) {
+#       for my $hr ( @tlixs ) {
+#          my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
+#          my $matches = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+#          if( $matches ) {
+#             $hr->{matches} = $matches;
+#
+#             }
+#          }
+#       }
+#    }
+
 for my $hr ( @treelocns ) {
    my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
    next unless $isa =~ m=[$isaset]=;
