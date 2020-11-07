@@ -21,10 +21,8 @@ $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in sheb
 # testing cmdlines using http://perldoc.perl.org/CGI.html#DEBUGGING
 # time ./search-files search_scope=b search_keys='nginx EPUB'
 
-# NB:   STDERR -> /var/log/nginx/error.log
+# see   STDERR -> /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
 # print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
-
-# see /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
 
 # runtime const behavioral controls:
 my $showRegex = 0;
@@ -52,13 +50,8 @@ sub gen_re_match_all_anyorder {
       push @reraw, "(?=.*$qm)"; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       }
    my $rv = '^(?i)' . join('',@reraw) . '.*$'; # print "\npat=$rv\n";
-   return $rv;
+   return qr/$rv/;
    }
-
-#--- following vars accumulate across calls to search_files (are effectively returned by search_files)
-my ($cands,$matches);  # simple counters provide fallback values if ($count_uniq_cands, $count_uniq_matches) are false
-my (%unique_cands,%unique_matches); # return ancillary values from search_files() in these global vars  :-(
-#--- preceding vars accumulate across calls to search_files (are effectively returned by search_files)
 
 sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
@@ -88,6 +81,8 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          }
       close $semfh if $semfh;
    }
+   my ($cands, $matches) = (0, 0);
+   my (%unique_cands,%unique_matches);
    my (%rv,%ft_f_keys,%ext_variant);
    my $split_fnm_base_type = ($findtype eq 'd')
       ? sub { ($_[0],''); }
@@ -103,22 +98,16 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          ($base,$type) = $split_fnm_base_type->($fnm);
          ++$unique_cands{$base};
          }
-      else {
-         ++$cands;
-         }
-      if( $tgt =~ m=$pat= ) { # print "$tgt\n" ;
+      ++$cands;
+      if( $tgt =~ m,$pat, ) { # print "$tgt\n" ;
          ($base,$type) = $split_fnm_base_type->($fnm) unless $base;
-         if( $count_uniq_matches ) {
-            ++$unique_matches{$base};
-            }
-         else {
-            ++$matches;
-            }
+         ++$unique_matches{$base} if $count_uniq_matches;
+         ++$matches;
          my $yr = do {
             my @yr4s = $tgt =~ m=$bound_re(\d{4})$bound_re=g; # normally, (c) year is given as yyyy
-            my @more = $tgt =~ m=$bound_re(\d{4})\d{2}$bound_re=g; push( @yr4s, @more ); # but rarely I give yyyymm
-               @more = $tgt =~ m=$bound_re(\d{4})\d{4}$bound_re=g; push( @yr4s, @more ); # and rarely I give yyyymmdd
-               my ($yr2) = $tgt =~ m=$bound_re(\d{2})\.\d{2}$bound_re=g; push( @yr4s, $yr2+2000 ) if $yr2; # but rarely I give yyyymm
+            my @more = $tgt =~ m=$bound_re(\d{4})\d{2}$bound_re=g;   push( @yr4s, @more     ); # but rarely I give yyyymm
+               @more = $tgt =~ m=$bound_re(\d{4})\d{4}$bound_re=g;   push( @yr4s, @more     ); # and rarely I give yyyymmdd
+            my ($yr2)= $tgt =~ m=$bound_re(\d{2})\.\d{2}$bound_re=g; push( @yr4s, $yr2+2000 ) if $yr2; # more rarely I give yy.mm
             my $rv = '';
             if( @yr4s ) {
                my $max = 0;
@@ -150,7 +139,10 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       push @{$rv{$yr}}, join(' ',@out);
       }
    $et_srch += time() - $t_srch_start;
-   return \%rv;
+   return (\%rv,
+            scalar keys %unique_cands   || $cands  ,
+            scalar keys %unique_matches || $matches,
+          );
    }
 
 #
@@ -190,6 +182,7 @@ my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp ma
    { isa => 'a', cat => 'Audiobooks', fsroot=>'/mnt/smb/5t_a/data/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
    { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/5t_a/data/Video'          , webroot=> '/files/video-downloads' , ft=>'d' },
    );
+my ($cands,$matches) = (0, 0);
 
 {
 my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
@@ -233,11 +226,10 @@ print "$pat\n" if $showRegex;
 for my $hr ( @treelocns ) {
    my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
    next unless $isa =~ m=[$isaset]=;
-   $hr->{matches} = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+   my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+   $cands   += $ccnt;
+   $matches += $mcnt;
    }
-
-$cands   = scalar keys %unique_cands   if $count_uniq_cands  ;
-$matches = scalar keys %unique_matches if $count_uniq_matches;
 }
 # print $qy->Dump();
 print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
