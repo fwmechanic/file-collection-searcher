@@ -167,14 +167,6 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
 # What I think this means is I want to determine the basename (book) and find
 # all files having the same basename and compress them as above.
 #
-use CGI;
-my $qy = CGI->new; my $norm_search_terms;
-print $qy->header;
-print $qy->start_html(
-      -title=>$norm_search_terms,
-      -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
-      );
-
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
    # align with /etc/nginx/sites-enabled/default (must edit as root)
    { isa => 'b', cat => 'Books'     , fsroot=>'/mnt/smb/5t_a/data/ebooks'         , webroot=> '/files/ebooks'          , ft=>'f' },
@@ -184,6 +176,8 @@ my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp ma
    );
 my ($cands,$matches) = (0, 0);
 
+use CGI;
+my $qy = CGI->new; my $norm_search_terms;
 {
 my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
 my $skeys = $qy->Vars->{search_keys} // '';
@@ -196,7 +190,12 @@ my $skeys = $qy->Vars->{search_keys} // '';
    $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that is injected when user hits 'back' in browser.
    $skeys =~ s='==g; # ' mimic collection-maintenance file rename
 my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
-$norm_search_terms = join(' ',@search_keys);
+   $norm_search_terms = join(' ',@search_keys);
+print $qy->header;
+print $qy->start_html(
+      -title=>$norm_search_terms,
+      -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
+      );
 my $pat = gen_re_match_all_anyorder( @search_keys );
 print "$pat\n" if $showRegex;
 
