@@ -177,81 +177,95 @@ my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp ma
 my ($cands,$matches) = (0, 0);
 
 use CGI;
-my $qy = CGI->new; my $norm_search_terms;
-{
-my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
-my $skeys = $qy->Vars->{search_keys} // '';
-   # print(sprintf("%v04X", $skeys), "\n");
-   # {
-   # local $Data::Dumper::Useqq = 1;
-   # print( decode_utf8(Dumper($skeys)) );
-   # print( decode_utf8(encode_utf8($skeys)) );
-   # }
-   $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that is injected when user hits 'back' in browser.
-   $skeys =~ s='==g; # ' mimic collection-maintenance file rename
-my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
-   $norm_search_terms = join(' ',@search_keys);
-print $qy->header;
-print $qy->start_html(
-      -title=>$norm_search_terms,
-      -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
-      );
-my $pat = gen_re_match_all_anyorder( @search_keys );
-print "$pat\n" if $showRegex;
-
-# WIP to allow processes colliding on flock $semfh to try the set of sem files in random/shuffle order
-# this would also require separating find-phase from search phase as the following should seek to complete all find-phases before searching
-#
-# my @tlixs;
-# for my $ix (0 .. $#treelocns) {
-#    my ($isa,$fsroot,$webroot,$findtype) = @{$treelocns[$ix]}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
-#    next unless $isa =~ m=[$isaset]=;
-#    push @tlixs, $ix;
-#    }
-# @tlixs = shuffle(@tlixs);
-# while( scalar @tlixs ) {
-#    for my $ix (0 .. $#tlixs) {
-#       for my $hr ( @tlixs ) {
-#          my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
-#          my $matches = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
-#          if( $matches ) {
-#             $hr->{matches} = $matches;
-#
-#             }
-#          }
-#       }
-#    }
-
-for my $hr ( @treelocns ) {
-   my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
-   next unless $isa =~ m=[$isaset]=;
-   my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
-   $cands   += $ccnt;
-   $matches += $mcnt;
+my $qy = CGI->new;
+# dispatch
+sub rsp404 {
+   print $qy->header( -status => '404 Not Found', );
+   exit 0;
    }
-}
-# print $qy->Dump();
-print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
-for my $hr ( @treelocns ) {
-   my $ms = $hr->{matches};
-   if( scalar keys %{$ms} ) {
-      my $cat = $hr->{cat};
-      print $qy->a({href=>"#$cat"},$cat),"\n";
+if   ( exists $qy->Vars->{search_keys} ) { search_keys( $qy ); }
+elsif( exists $qy->Vars->{zipdownload} ) { zipdownload( $qy ); }
+else { rsp404(); }
+
+sub zipdownload { rsp404(); }  # unimpl
+
+sub search_keys( $qy ) {
+   my $norm_search_terms;
+   {
+   my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
+   my $skeys = $qy->Vars->{search_keys} // '';
+      # print(sprintf("%v04X", $skeys), "\n");
+      # {
+      # local $Data::Dumper::Useqq = 1;
+      # print( decode_utf8(Dumper($skeys)) );
+      # print( decode_utf8(encode_utf8($skeys)) );
+      # }
+      $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that is injected when user hits 'back' in browser.
+      $skeys =~ s='==g; # ' mimic collection-maintenance file rename
+   my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
+      $norm_search_terms = join(' ',@search_keys);
+   print $qy->header;
+   print $qy->start_html(
+         -title=>$norm_search_terms,
+         -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
+         );
+   my $pat = gen_re_match_all_anyorder( @search_keys );
+   print "$pat\n" if $showRegex;
+
+   # WIP to allow processes colliding on flock $semfh to try the set of sem files in random/shuffle order
+   # this would also require separating find-phase from search phase as the following should seek to complete all find-phases before searching
+   #
+   # my @tlixs;
+   # for my $ix (0 .. $#treelocns) {
+   #    my ($isa,$fsroot,$webroot,$findtype) = @{$treelocns[$ix]}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
+   #    next unless $isa =~ m=[$isaset]=;
+   #    push @tlixs, $ix;
+   #    }
+   # @tlixs = shuffle(@tlixs);
+   # while( scalar @tlixs ) {
+   #    for my $ix (0 .. $#tlixs) {
+   #       for my $hr ( @tlixs ) {
+   #          my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
+   #          my $matches = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+   #          if( $matches ) {
+   #             $hr->{matches} = $matches;
+   #
+   #             }
+   #          }
+   #       }
+   #    }
+
+   for my $hr ( @treelocns ) {
+      my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
+      next unless $isa =~ m=[$isaset]=;
+      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+      $cands   += $ccnt;
+      $matches += $mcnt;
       }
    }
-for my $hr ( @treelocns ) {
-   my $ms = $hr->{matches};
-   if( scalar keys %{$ms} ) {
-      my $anch = { id => $hr->{cat} };
-      for my $yr (reverse sort keys %{$ms}) { # print "$yr:\n";
-         print $qy->h3( $anch, $hr->{cat} . " &copy;".($yr || "<i>unknown</i>") ), "\n";
-         $anch = {};
-         print $qy->ol( map { $qy->li( $_ ); } sort @{$ms->{$yr}} ), "\n";
+   # print $qy->Dump();
+   print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
+   for my $hr ( @treelocns ) {
+      my $ms = $hr->{matches};
+      if( scalar keys %{$ms} ) {
+         my $cat = $hr->{cat};
+         print $qy->a({href=>"#$cat"},$cat),"\n";
          }
       }
+   for my $hr ( @treelocns ) {
+      my $ms = $hr->{matches};
+      if( scalar keys %{$ms} ) {
+         my $anch = { id => $hr->{cat} };
+         for my $yr (reverse sort keys %{$ms}) { # print "$yr:\n";
+            print $qy->h3( $anch, $hr->{cat} . " &copy;".($yr || "<i>unknown</i>") ), "\n";
+            $anch = {};
+            print $qy->ol( map { $qy->li( $_ ); } sort @{$ms->{$yr}} ), "\n";
+            }
+         }
+      }
+   sub pr_et_us { return sprintf("%.6f", $_[0]); }
+   print $qy->h3( "Server response timing:" );
+   print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ), " Tfind: ".pr_et_us( $et_find ), " Tsrch: ".pr_et_us( $et_srch ) ] ), "\n";
+   print $qy->end_html;
+   exit 0;
    }
-sub pr_et_us { return sprintf("%.6f", $_[0]); }
-print $qy->h3( "Server response timing:" );
-print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ), " Tfind: ".pr_et_us( $et_find ), " Tsrch: ".pr_et_us( $et_srch ) ] ), "\n";
-print $qy->end_html;
-exit 0;
