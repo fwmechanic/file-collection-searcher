@@ -188,11 +188,30 @@ sub rsp404 {
    print $qy->header( -status => '404 Not Found', );
    exit 0;
    }
-if   ( exists $qy->Vars->{search_keys} ) { handler_search_keys( $qy ); }
-elsif( exists $qy->Vars->{zipdownload} ) { handler_zipdownload( $qy ); }
+if   ( exists $qy->Vars->{search_keys}  ) { handler_search_keys( $qy ); }
+elsif( exists $qy->Vars->{zipdowndirnm} ) { handler_zipdownload( $qy ); }
 else { rsp404(); }
 
-sub handler_zipdownload { rsp404(); }  # unimpl
+sub handler_zipdownload { my ($qy) = @_;
+   rsp404();
+
+   # approach:
+   # my $weblink = $qy->Vars->{zipdowndirnm};
+   # iterate over @treelocns
+   #    find $treelocn{webroot} which best matches prefix of $weblink
+   # split $weblink into webroot and $FsNmRel, gen $FsNmAbs = "$treelocn{fsroot}/$FsNmRel"
+   # die unless $FsNmAbs is a dir
+   # die unless $FsNmAbs dir tree size is < 1GB (or something more sophisticated)
+   # do the needful to request mod_zip do its thing...
+   #
+   # Other items
+   # handler_search_keys: when generating dir results, generate additional link
+   #   (icon?) "download tree-zip" containing link to this page with some param
+   #   that routes to handler_zipdownload.
+   #
+   # outside repo: modify nginx config to route
+
+   }  # unimpl
 
 sub search_keys_find_matches { my ($qy) = @_;
    my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
