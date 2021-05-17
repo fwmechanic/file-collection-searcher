@@ -120,10 +120,10 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          ++$unique_matches{$base} if count_uniq_matches;
          ++$matches;
          my $yr = extract_yr( $tgt );
-         my $fsNmAbs = "$fsroot/$fsNmRel"; $fsNmAbs =~ s=/\./=/=; # print "$fsNmAbs\n" ;
-         my $weblink; ($weblink = $fsNmAbs) =~ s=^$fsroot=$webroot=; # print "weblink=$weblink\n";
+         my $fsNmAbs = "$fsroot/$fsNmRel" =~ s=/\./=/=r; # print "$fsNmAbs\n" ;
+         my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
          if( $findtype eq 'd' || ! $type ) {
-            my $reldir; ($reldir = $weblink) =~ s=^$webroot/==;
+            my $reldir = $weblink =~ s=^$webroot/==r;
             push @{$rv{$yr}}, $qy->a({href=>"$weblink"},$reldir);
             }
          else {
