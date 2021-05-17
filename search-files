@@ -167,14 +167,15 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
 # What I think this means is I want to determine the basename (book) and find
 # all files having the same basename and compress them as above.
 #
+my $common_fsroot = '/mnt/smb/5t_a/data';
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
    # align with /etc/nginx/sites-enabled/default (must edit as root)
-   { isa => 'b', cat => 'Books'     , fsroot=>'/mnt/smb/5t_a/data/ebooks'         , webroot=> '/files/ebooks'          , ft=>'f' },
-   { isa => 'm', cat => 'Music'     , fsroot=>'/mnt/smb/5t_a/data/MP3'            , webroot=> '/files/mp3'             , ft=>'d' },
-   { isa => 'a', cat => 'Audiobooks', fsroot=>'/mnt/smb/5t_a/data/audiobooks'     , webroot=> '/files/audiobooks'      , ft=>'f' },
-   { isa => 'v', cat => 'Videos'    , fsroot=>'/mnt/smb/5t_a/data/Video'          , webroot=> '/files/video-downloads' , ft=>'d' },
+   { isa=>'b', ft=>'f', cat=>'Books'      , webroot=>'/files/ebooks'          , fsroot=>"$common_fsroot/ebooks"     },
+   { isa=>'m', ft=>'d', cat=>'Music'      , webroot=>'/files/mp3'             , fsroot=>"$common_fsroot/MP3"        },
+   { isa=>'a', ft=>'f', cat=>'Audiobooks' , webroot=>'/files/audiobooks'      , fsroot=>"$common_fsroot/audiobooks" },
+   { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/video-downloads' , fsroot=>"$common_fsroot/Video"      },
    );
-my ($cands,$matches) = (0, 0);
+my ($cands,$matches) = (0, 0);  # accumulated across multiple calls to search_files
 
 use CGI;
 my $qy = CGI->new;
@@ -183,17 +184,15 @@ sub rsp404 {
    print $qy->header( -status => '404 Not Found', );
    exit 0;
    }
-if   ( exists $qy->Vars->{search_keys} ) { search_keys( $qy ); }
-elsif( exists $qy->Vars->{zipdownload} ) { zipdownload( $qy ); }
+if   ( exists $qy->Vars->{search_keys} ) { handler_search_keys( $qy ); }
+elsif( exists $qy->Vars->{zipdownload} ) { handler_zipdownload( $qy ); }
 else { rsp404(); }
 
-sub zipdownload { rsp404(); }  # unimpl
+sub handler_zipdownload { rsp404(); }  # unimpl
 
-sub search_keys( $qy ) {
-   my $norm_search_terms;
-   {
+sub search_keys_find_matches { my ($qy) = @_;
    my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
-   my $skeys = $qy->Vars->{search_keys} // '';
+   my $skeys = $qy->Vars->{search_keys};
       # print(sprintf("%v04X", $skeys), "\n");
       # {
       # local $Data::Dumper::Useqq = 1;
@@ -203,14 +202,8 @@ sub search_keys( $qy ) {
       $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that is injected when user hits 'back' in browser.
       $skeys =~ s='==g; # ' mimic collection-maintenance file rename
    my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
-      $norm_search_terms = join(' ',@search_keys);
-   print $qy->header;
-   print $qy->start_html(
-         -title=>$norm_search_terms,
-         -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
-         );
+   my $norm_search_terms = join(' ',@search_keys);
    my $pat = gen_re_match_all_anyorder( @search_keys );
-   print "$pat\n" if $showRegex;
 
    # WIP to allow processes colliding on flock $semfh to try the set of sem files in random/shuffle order
    # this would also require separating find-phase from search phase as the following should seek to complete all find-phases before searching
@@ -242,7 +235,17 @@ sub search_keys( $qy ) {
       $cands   += $ccnt;
       $matches += $mcnt;
       }
+   return ($norm_search_terms,$pat);
    }
+
+sub handler_search_keys { my ($qy) = @_;
+   my ($norm_search_terms,$pat) = search_keys_find_matches( $qy );
+   print $qy->header;
+   print $qy->start_html(
+         -title=>$norm_search_terms,
+         -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
+         );
+   print "$pat\n" if $showRegex;
    # print $qy->Dump();
    print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
    for my $hr ( @treelocns ) {
