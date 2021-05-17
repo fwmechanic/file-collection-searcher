@@ -5,7 +5,6 @@ use Time::HiRes qw( time );
 use Encode;
 use Data::Dumper;
 use Fcntl qw(:flock SEEK_END);
-# use List::Util 'shuffle';
 
 # use Cwd;
 # my $pwd = getcwd;
@@ -216,7 +215,7 @@ sub search_keys_find_matches { my ($qy) = @_;
    #    next unless $isa =~ m=[$isaset]=;
    #    push @tlixs, $ix;
    #    }
-   # @tlixs = shuffle(@tlixs);
+   # @tlixs = shuffle(@tlixs);  requires  -->  use List::Util 'shuffle';
    # while( scalar @tlixs ) {
    #    for my $ix (0 .. $#tlixs) {
    #       for my $hr ( @tlixs ) {
