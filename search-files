@@ -105,9 +105,9 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    my $t_srch_start = time();
    {
    open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
-   while ( my $line = <$ifh> ) {  # one filename or dirname per line
-      chomp $line;
-      my ($fnm) = $line =~ m=([^/]+)$=; # print "$fnm\n";
+   while ( my $fsNmRel = <$ifh> ) {  # one filename or dirname (relative to $fsroot) per line
+      chomp $fsNmRel;
+      my ($fnm) = $fsNmRel =~ m=([^/]+)$=; # print "$fnm\n";
       my $tgt = ".$fnm.";
       my ($base,$type);
       if( count_uniq_cands ) {
@@ -120,14 +120,14 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          ++$unique_matches{$base} if count_uniq_matches;
          ++$matches;
          my $yr = extract_yr( $tgt );
-         my $ofnm = "$fsroot/$line"; $ofnm =~ s=/\./=/=; # print "$ofnm\n" ;
-         my $link; ($link = $ofnm) =~ s=^$fsroot=$webroot=; # print "link=$link\n";
+         my $fsNmAbs = "$fsroot/$fsNmRel"; $fsNmAbs =~ s=/\./=/=; # print "$fsNmAbs\n" ;
+         my $weblink; ($weblink = $fsNmAbs) =~ s=^$fsroot=$webroot=; # print "weblink=$weblink\n";
          if( $findtype eq 'd' || ! $type ) {
-            my $reldir; ($reldir = $link) =~ s=^$webroot/==;
-            push @{$rv{$yr}}, $qy->a({href=>"$link"},$reldir);
+            my $reldir; ($reldir = $weblink) =~ s=^$webroot/==;
+            push @{$rv{$yr}}, $qy->a({href=>"$weblink"},$reldir);
             }
          else {
-            my $key = substr( $link, 0, - length $type );
+            my $key = substr( $weblink, 0, - length $type );
             $ft_f_keys{$key} = $yr;
             push @{$ext_variant{$key}}, $type;
             }
