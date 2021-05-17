@@ -42,7 +42,7 @@ use constant maxCopyrightYr => do {
 my %tok_remap = ( and => '(?:N|AND)', 'c#' => 'CSHARP', 'f#' => 'FSHARP' );
 
 my ($bound_re_before,$bound_re_after) = ( '(?:^|[\W_])', '(?:$|[\W_])' ); # can't use \b because $qm may not consist of word chars only
-my $bound_re = '(?:\b|[_])';
+use constant bound_re => '(?:\b|[_])';
 sub gen_re_match_all_anyorder {
    my @reraw;
    for (@_) {  # construct regex matching lines containing, in any order, ALL of @_
@@ -106,10 +106,10 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          ++$unique_matches{$base} if count_uniq_matches;
          ++$matches;
          my $yr = do {
-            my @yr4s = $tgt =~ m=$bound_re(\d{4})$bound_re=g; # normally, (c) year is given as yyyy
-            my @more = $tgt =~ m=$bound_re(\d{4})\d{2}$bound_re=g;   push( @yr4s, @more     ); # but rarely I give yyyymm
-               @more = $tgt =~ m=$bound_re(\d{4})\d{4}$bound_re=g;   push( @yr4s, @more     ); # and rarely I give yyyymmdd
-            my ($yr2)= $tgt =~ m=$bound_re(\d{2})\.\d{2}$bound_re=g; push( @yr4s, $yr2+2000 ) if $yr2; # more rarely I give yy.mm
+            my @yr4s = $tgt =~ m=${\bound_re}(\d{4})${\bound_re}=g; # normally, (c) year is given as yyyy
+            my @more = $tgt =~ m=${\bound_re}(\d{4})\d{2}${\bound_re}=g;   push( @yr4s, @more     ); # but rarely I give yyyymm
+               @more = $tgt =~ m=${\bound_re}(\d{4})\d{4}${\bound_re}=g;   push( @yr4s, @more     ); # and rarely I give yyyymmdd
+            my ($yr2)= $tgt =~ m=${\bound_re}(\d{2})\.\d{2}${\bound_re}=g; push( @yr4s, $yr2+2000 ) if $yr2; # more rarely I give yy.mm
             my $rv = '';
             if( @yr4s ) {
                my $max = 0;
