@@ -6,6 +6,10 @@ use Encode;
 use Data::Dumper;
 use Fcntl qw(:flock SEEK_END);
 
+# see STDERR -> /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
+# testing cmdlines using http://perldoc.perl.org/CGI.html#DEBUGGING
+# time ./search-files search_scope=b search_keys='nginx EPUB'
+#
 # use Cwd;
 # my $pwd = getcwd;
 # my $username = getpwuid($<);
@@ -19,17 +23,11 @@ use constant showRegex => 0;
 use constant count_uniq_cands   => 0;  # has major performance impact
 use constant count_uniq_matches => 1;  # has no    performance impact
 
-my $tm_start = time();
-
-my $et_srch = 0;
-my $et_find = 0;
-
 $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in shebang)
 
-# testing cmdlines using http://perldoc.perl.org/CGI.html#DEBUGGING
-# time ./search-files search_scope=b search_keys='nginx EPUB'
-
-# see   STDERR -> /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
+my $tm_start = time();
+my $et_srch = 0;
+my $et_find = 0;
 
 sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
 
@@ -39,23 +37,39 @@ use constant maxCopyrightYr => do {
    $year + 1;  # (c)Y+1 books appear late in year Y
    };
 
-my %tok_remap = ( and => '(?:N|AND)', 'c#' => 'CSHARP', 'f#' => 'FSHARP' );
 
-my ($bound_re_before,$bound_re_after) = ( '(?:^|[\W_])', '(?:$|[\W_])' ); # can't use \b because $qm may not consist of word chars only
-use constant bound_re => '(?:\b|[_])';
+use constant bound_re        => '(?:\b|[_])' ;  # https://dev.to/kirklewis/string-interpolation-of-constants-in-perl-5-181o
+use constant bound_re_before => '(?:^|[\W_])';  # can't use \b because $qm may not consist of word chars only
+use constant bound_re_after  => '(?:$|[\W_])';  # can't use \b because $qm may not consist of word chars only
+
 sub gen_re_match_all_anyorder {
+   my %tok_remap = ( and => '(?:N|AND)', 'c#' => 'CSHARP', 'f#' => 'FSHARP' );
    my @reraw;
    for (@_) {  # construct regex matching lines containing, in any order, ALL of @_
       my $qm = quotemeta( $_ );            #  match fragment
       $qm = $tok_remap{lc $qm} if exists $tok_remap{lc $qm};
-      $qm = "$bound_re_before$qm$bound_re_after" if ($qm =~ m=[A-Z]=) && ! ($qm =~ m=[a-z]=); # all caps? match word
+      $qm = "${\bound_re_before}$qm${\bound_re_after}" if ($qm =~ m=[A-Z]=) && ! ($qm =~ m=[a-z]=); # all caps? match word
       push @reraw, "(?=.*$qm)"; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       }
    my $rv = '^(?i)' . join('',@reraw) . '.*$'; # print "\npat=$rv\n";
    return qr/$rv/;
    }
 
-sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
+sub extract_yr { my($tgt) = @_;
+   my @yr4s = $tgt =~ m=${\bound_re}(\d{4})${\bound_re}=g; # normally, (c) year is given as yyyy
+   my @more = $tgt =~ m=${\bound_re}(\d{4})\d{2}${\bound_re}=g;   push( @yr4s, @more     ); # but rarely I give yyyymm
+      @more = $tgt =~ m=${\bound_re}(\d{4})\d{4}${\bound_re}=g;   push( @yr4s, @more     ); # and rarely I give yyyymmdd
+   my ($yr2)= $tgt =~ m=${\bound_re}(\d{2})\.\d{2}${\bound_re}=g; push( @yr4s, $yr2+2000 ) if $yr2; # more rarely I give yy.mm
+   my $rv = '';
+   if( @yr4s ) {
+      my $max = 0;
+      $max = ($_<=maxCopyrightYr && $_>$max) ? $_ : $max foreach @yr4s;  # print $max,"\n";
+      $rv = $max if $max > 0;
+      }
+   $rv;
+   }
+
+sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
@@ -105,19 +119,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          ($base,$type) = $split_fnm_base_type->($fnm) unless $base;
          ++$unique_matches{$base} if count_uniq_matches;
          ++$matches;
-         my $yr = do {
-            my @yr4s = $tgt =~ m=${\bound_re}(\d{4})${\bound_re}=g; # normally, (c) year is given as yyyy
-            my @more = $tgt =~ m=${\bound_re}(\d{4})\d{2}${\bound_re}=g;   push( @yr4s, @more     ); # but rarely I give yyyymm
-               @more = $tgt =~ m=${\bound_re}(\d{4})\d{4}${\bound_re}=g;   push( @yr4s, @more     ); # and rarely I give yyyymmdd
-            my ($yr2)= $tgt =~ m=${\bound_re}(\d{2})\.\d{2}${\bound_re}=g; push( @yr4s, $yr2+2000 ) if $yr2; # more rarely I give yy.mm
-            my $rv = '';
-            if( @yr4s ) {
-               my $max = 0;
-               $max = ($_<=maxCopyrightYr && $_>$max) ? $_ : $max foreach @yr4s;  # print $max,"\n";
-               $rv = $max if $max > 0;
-               }
-            $rv;
-            };
+         my $yr = extract_yr( $tgt );
          my $ofnm = "$fsroot/$line"; $ofnm =~ s=/\./=/=; # print "$ofnm\n" ;
          my $link; ($link = $ofnm) =~ s=^$fsroot=$webroot=; # print "link=$link\n";
          if( $findtype eq 'd' || ! $type ) {
@@ -170,13 +172,13 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
 # all files having the same basename and compress them as above.
 #
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
+   # HACK ALERT: handler_search_keys call tree adds {matches} to these array entries!!!
    # align with /etc/nginx/sites-enabled/default (must edit as root)
    { isa=>'b', ft=>'f', cat=>'Books'      , webroot=>'/files/ebooks'          , fsroot=>common_fsroot.'/ebooks'     },
    { isa=>'m', ft=>'d', cat=>'Music'      , webroot=>'/files/mp3'             , fsroot=>common_fsroot.'/MP3'        },
    { isa=>'a', ft=>'f', cat=>'Audiobooks' , webroot=>'/files/audiobooks'      , fsroot=>common_fsroot.'/audiobooks' },
    { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/video-downloads' , fsroot=>common_fsroot.'/Video'      },
    );
-my ($cands,$matches) = (0, 0);  # accumulated across multiple calls to search_files
 
 use CGI;
 my $qy = CGI->new;
@@ -220,7 +222,7 @@ sub search_keys_find_matches { my ($qy) = @_;
    #    for my $ix (0 .. $#tlixs) {
    #       for my $hr ( @tlixs ) {
    #          my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
-   #          my $matches = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+   #          my $matches = search_treelocn($qy,$isa,$fsroot,$webroot,$findtype,$pat);
    #          if( $matches ) {
    #             $hr->{matches} = $matches;
    #
@@ -229,18 +231,19 @@ sub search_keys_find_matches { my ($qy) = @_;
    #       }
    #    }
 
+   my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
    for my $hr ( @treelocns ) {
       my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $isa =~ m=[$isaset]=;
-      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_files($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn($qy,$isa,$fsroot,$webroot,$findtype,$pat);
       $cands   += $ccnt;
       $matches += $mcnt;
       }
-   return ($norm_search_terms,$pat);
+   return ($norm_search_terms,$pat,$cands,$matches);
    }
 
 sub handler_search_keys { my ($qy) = @_;
-   my ($norm_search_terms,$pat) = search_keys_find_matches( $qy );
+   my ($norm_search_terms,$pat,$cands,$matches) = search_keys_find_matches( $qy );
    print $qy->header;
    print $qy->start_html(
          -title=>$norm_search_terms,
