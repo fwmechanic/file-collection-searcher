@@ -25,9 +25,7 @@ use constant count_uniq_matches => 1;  # has no    performance impact
 
 $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in shebang)
 
-my $tm_start = time();
-my $et_srch = 0;
-my $et_find = 0;
+my ($tm_start,$et_srch,$et_find) = (time(), 0, 0);
 
 sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
 
@@ -103,9 +101,10 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    my $split_fnm_base_type = ($findtype eq 'd')
       ? sub { ($_[0],''); }
       : sub { ($_[0] =~ m=(.+?)((?:[_.][Cc]ode|\.medtype|_cropped)?\.[^\.]+)$=); } ;
-   open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
    my $t_srch_start = time();
-   while ( my $line = <$ifh> ) {
+   {
+   open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
+   while ( my $line = <$ifh> ) {  # one filename or dirname per line
       chomp $line;
       my ($fnm) = $line =~ m=([^/]+)$=; # print "$fnm\n";
       my $tgt = ".$fnm.";
@@ -133,6 +132,7 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
             }
          }
       }
+   } # closes $ifh
    for my $link_wo_ext (sort keys %ft_f_keys) {  # fold ext_variants into rv
       my @out = $link_wo_ext =~ m=([^/]+)$=;
       my $lwx = $link_wo_ext =~ s{([#])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '#' only FTTB)
