@@ -6,10 +6,19 @@ use Encode;
 use Data::Dumper;
 use Fcntl qw(:flock SEEK_END);
 # use List::Util 'shuffle';
-use Cwd;
-my $pwd = getcwd;
-my $username = getpwuid($<);
-my $cachedir = "/cgi-app-cache/search-files";  # ugly hack: these two dirs are OWNED and writable only by www-data
+
+# use Cwd;
+# my $pwd = getcwd;
+# my $username = getpwuid($<);
+# print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
+
+use constant cachedir => "/cgi-app-cache/search-files";  # ugly hack: these two dirs are OWNED and writable only by www-data
+use constant common_fsroot => '/mnt/smb/5t_a/data';
+
+# mode controls:
+use constant showRegex => 0;
+use constant count_uniq_cands   => 0;  # has major performance impact
+use constant count_uniq_matches => 1;  # has no    performance impact
 
 my $tm_start = time();
 
@@ -22,16 +31,10 @@ $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in sheb
 # time ./search-files search_scope=b search_keys='nginx EPUB'
 
 # see   STDERR -> /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
-# print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
-
-# runtime const behavioral controls:
-my $showRegex = 0;
-my $count_uniq_cands   = 0;  # has major performance impact
-my $count_uniq_matches = 1;  # has no    performance impact
 
 sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
 
-my $maxCopyrightYr = do {
+use constant maxCopyrightYr => do {
    my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime();
    $year = $year+1900;  # std xlation
    $year + 1;  # (c)Y+1 books appear late in year Y
@@ -57,13 +60,13 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
-   my $findoutfnm = "$cachedir/$fsrt_tail";
+   my $findoutfnm = cachedir."/$fsrt_tail";
    {  # $semfh is used in case fcgiwrap does not single-thread CGI processes;
       # this is not tremendously efficient in case of collision, but not awful either
       # _could_ fail flock immediately (LOCK_NB) and try a different $fsroot to parallel-process find-checking (and worst-case: scanning)
       my $semfh;
       if( 1 ) {
-         my $semfnm = "$cachedir/$fsrt_tail.sem";
+         my $semfnm = cachedir."/$fsrt_tail.sem";
          open $semfh, '>', $semfnm or die "abend: cannot open $semfnm for writing: $!\n";
          flock( $semfh, LOCK_EX )  or die "abend: flock $semfnm failed: $!\n";
          }
@@ -94,14 +97,14 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       my ($fnm) = $line =~ m=([^/]+)$=; # print "$fnm\n";
       my $tgt = ".$fnm.";
       my ($base,$type);
-      if( $count_uniq_cands ) {
+      if( count_uniq_cands ) {
          ($base,$type) = $split_fnm_base_type->($fnm);
          ++$unique_cands{$base};
          }
       ++$cands;
       if( $tgt =~ m,$pat, ) { # print "$tgt\n" ;
          ($base,$type) = $split_fnm_base_type->($fnm) unless $base;
-         ++$unique_matches{$base} if $count_uniq_matches;
+         ++$unique_matches{$base} if count_uniq_matches;
          ++$matches;
          my $yr = do {
             my @yr4s = $tgt =~ m=$bound_re(\d{4})$bound_re=g; # normally, (c) year is given as yyyy
@@ -111,7 +114,7 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
             my $rv = '';
             if( @yr4s ) {
                my $max = 0;
-               $max = ($_<=$maxCopyrightYr && $_>$max) ? $_ : $max foreach @yr4s;  # print $max,"\n";
+               $max = ($_<=maxCopyrightYr && $_>$max) ? $_ : $max foreach @yr4s;  # print $max,"\n";
                $rv = $max if $max > 0;
                }
             $rv;
@@ -167,13 +170,12 @@ sub search_files { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
 # What I think this means is I want to determine the basename (book) and find
 # all files having the same basename and compress them as above.
 #
-my $common_fsroot = '/mnt/smb/5t_a/data';
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
    # align with /etc/nginx/sites-enabled/default (must edit as root)
-   { isa=>'b', ft=>'f', cat=>'Books'      , webroot=>'/files/ebooks'          , fsroot=>"$common_fsroot/ebooks"     },
-   { isa=>'m', ft=>'d', cat=>'Music'      , webroot=>'/files/mp3'             , fsroot=>"$common_fsroot/MP3"        },
-   { isa=>'a', ft=>'f', cat=>'Audiobooks' , webroot=>'/files/audiobooks'      , fsroot=>"$common_fsroot/audiobooks" },
-   { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/video-downloads' , fsroot=>"$common_fsroot/Video"      },
+   { isa=>'b', ft=>'f', cat=>'Books'      , webroot=>'/files/ebooks'          , fsroot=>common_fsroot.'/ebooks'     },
+   { isa=>'m', ft=>'d', cat=>'Music'      , webroot=>'/files/mp3'             , fsroot=>common_fsroot.'/MP3'        },
+   { isa=>'a', ft=>'f', cat=>'Audiobooks' , webroot=>'/files/audiobooks'      , fsroot=>common_fsroot.'/audiobooks' },
+   { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/video-downloads' , fsroot=>common_fsroot.'/Video'      },
    );
 my ($cands,$matches) = (0, 0);  # accumulated across multiple calls to search_files
 
@@ -245,7 +247,7 @@ sub handler_search_keys { my ($qy) = @_;
          -title=>$norm_search_terms,
          -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
          );
-   print "$pat\n" if $showRegex;
+   print "$pat\n" if showRegex;
    # print $qy->Dump();
    print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
    for my $hr ( @treelocns ) {
