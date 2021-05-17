@@ -98,10 +98,10 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    }
    my ($cands, $matches) = (0, 0);
    my (%unique_cands,%unique_matches);
-   my (%rv,%ft_f_keys,%ext_variant);
-   my $split_fnm_base_type = ($findtype eq 'd')
-      ? sub { ($_[0],''); }
-      : sub { ($_[0] =~ m=(.+?)((?:[_.][Cc]ode|\.medtype|_cropped)?\.[^\.]+)$=); } ;
+   my (%rv,%ft_f_keys,%extsOf);
+   my $split_fnm_base_ext = ($findtype eq 'd')
+      ? sub { ($_[0],''); }   # note that WE USE AN EXTENDED DEFINITION OF "ext" as defined HERE_EXT
+      : sub { ($_[0] =~ m=(.+?)((?:[_.][Cc]ode|\.medtype|_cropped)?\.[^\.]+)$=); } ;  # <-- HERE_EXT
    my $t_srch_start = time();
    {
    open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
@@ -109,35 +109,35 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       chomp $fsNmRel;
       my ($fnm) = $fsNmRel =~ m=([^/]+)$=; # print "$fnm\n";
       my $tgt = ".$fnm.";
-      my ($base,$type);
+      my ($base,$ext);
       if( count_uniq_cands ) {
-         ($base,$type) = $split_fnm_base_type->($fnm);
+         ($base,$ext) = $split_fnm_base_ext->($fnm);
          ++$unique_cands{$base};
          }
       ++$cands;
       if( $tgt =~ m,$pat, ) { # print "$tgt\n" ;
-         ($base,$type) = $split_fnm_base_type->($fnm) unless $base;
+         ($base,$ext) = $split_fnm_base_ext->($fnm) unless $base;
          ++$unique_matches{$base} if count_uniq_matches;
          ++$matches;
          my $yr = extract_yr( $tgt );
          my $fsNmAbs = "$fsroot/$fsNmRel" =~ s=/\./=/=r; # print "$fsNmAbs\n" ;
          my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
-         if( $findtype eq 'd' || ! $type ) {
+         if( $findtype eq 'd' || ! $ext ) {
             my $reldir = $weblink =~ s=^$webroot/==r;
             push @{$rv{$yr}}, $qy->a({href=>"$weblink"},$reldir);
             }
          else {
-            my $key = substr( $weblink, 0, - length $type );
-            $ft_f_keys{$key} = $yr;
-            push @{$ext_variant{$key}}, $type;
+            my $link_wo_ext = substr( $weblink, 0, - length $ext );
+            $ft_f_keys{$link_wo_ext} = $yr;
+            push @{$extsOf{$link_wo_ext}}, $ext;
             }
          }
       }
    } # closes $ifh
-   for my $link_wo_ext (sort keys %ft_f_keys) {  # fold ext_variants into rv
+   for my $link_wo_ext (sort keys %ft_f_keys) {  # fold extsOf into rv
       my @out = $link_wo_ext =~ m=([^/]+)$=;
       my $lwx = $link_wo_ext =~ s{([#])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '#' only FTTB)
-      for my $ext ( reverse sort @{$ext_variant{$link_wo_ext}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
+      for my $ext ( reverse sort @{$extsOf{$link_wo_ext}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
          push @out, $qy->a({href=>"$lwx$ext"},$ext),"\n";
          }
       my $yr = $ft_f_keys{$link_wo_ext};
