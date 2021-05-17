@@ -35,7 +35,8 @@ use constant maxCopyrightYr => do {
    $year + 1;  # (c)Y+1 books appear late in year Y
    };
 
-
+use constant q1 => "'";
+use constant q2 => '"';
 use constant bound_re        => '(?:\b|[_])' ;  # https://dev.to/kirklewis/string-interpolation-of-constants-in-perl-5-181o
 use constant bound_re_before => '(?:^|[\W_])';  # can't use \b because $qm may not consist of word chars only
 use constant bound_re_after  => '(?:$|[\W_])';  # can't use \b because $qm may not consist of word chars only
@@ -202,9 +203,9 @@ sub search_keys_find_matches { my ($qy) = @_;
       # print( decode_utf8(Dumper($skeys)) );
       # print( decode_utf8(encode_utf8($skeys)) );
       # }
-      $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that is injected when user hits 'back' in browser.
-      $skeys =~ s='==g; # ' mimic collection-maintenance file rename
-   my @search_keys = split( qr{[-\s,.:"]+}, $skeys ); # " preserve: [+#]
+      $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that browser can inject when user hits browser-'back'.
+      $skeys =~ s=${\q1}==g; # mimic qf file rename behavior
+   my @search_keys = split( qr{[-\s,.:${\q2}]+}, $skeys ); # preserve: [+#]
    my $norm_search_terms = join(' ',@search_keys);
    my $pat = gen_re_match_all_anyorder( @search_keys );
 
