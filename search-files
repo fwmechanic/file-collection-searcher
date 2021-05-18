@@ -193,7 +193,8 @@ elsif( exists $qy->Vars->{zipdowndirnm} ) { handler_zipdownload( $qy ); }
 else { rsp404(); }
 
 sub handler_zipdownload { my ($qy) = @_;
-   my $weblink = $qy->Vars->{zipdowndirnm};  print "weblink=$weblink<p>\n";
+   my $p = '<p>';
+   my $weblink = $qy->Vars->{zipdowndirnm};  print "weblink=$weblink$p\n";
    print $qy->header;
    print $qy->start_html(
          -title=>"zipdownload $weblink",
@@ -204,11 +205,19 @@ sub handler_zipdownload { my ($qy) = @_;
       next unless $weblink =~ m=^\Q$webroot=;
       print "hit on webroot=$webroot";
       print " but findtype=$findtype != 'd'" unless $findtype eq 'd';
-      print "<p>\n";
+      print "$p\n";
       my $fsNmAbs = $weblink =~ s=^\Q$webroot=$fsroot=r;
       print "fsNmAbs=$fsNmAbs";
       print " but it isn't a directory!" unless -d $fsNmAbs;
-      print "<p>\n";
+      print "$p\n";
+
+      my $cmd = "find '$fsNmAbs' -type f";
+      print( $p, $cmd, "\n" );
+      my $files = qx( find '$fsNmAbs' -type f );
+      print( $p, $files, "\n" );
+      #my @files = qx( find '$fsNmAbs' -type f );
+      #print( $p, $_, "\n" ) for @files;
+      last;
       }
 
    # die unless $FsNmAbs dir tree size is < 1GB (or something more sophisticated)
