@@ -193,7 +193,7 @@ elsif( exists $qy->Vars->{zipdowndirnm} ) { handler_zipdownload( $qy ); }
 else { rsp404(); }
 
 sub handler_zipdownload { my ($qy) = @_;
-   my $p = '<p>';
+   my $p = '<br>';
    $qy->Vars->{zipdowndirnm} =~ m=^((?:(?!\.\./).)*)$=;   # untaint
    my $weblink = $1; print STDERR "weblink=$weblink$p\n";
    print $qy->header;
@@ -213,10 +213,30 @@ sub handler_zipdownload { my ($qy) = @_;
       print " but it isn't a directory!" unless -d $fsNmAbs;
       print "$p\n";
 
-      my $cmd = "find '$fsNmAbs' -type f";
+      # https://www.nginx.com/resources/wiki/modules/zip/
+      # response stream format
+      # crc32 bytecount location filename\r\n
+      # where
+      #   crc32      of the file, or '-' if not available
+      #   bytecount  of the file
+      #   location   where the file can be read, in the context of the active nginx config file
+      #              "(properly URL-encoded)" (which means any spaces in the location must be converted to e.g. '%20')
+      #   filename   name the file written to the zipfile is given; may include a directory
+
+      my $cmd = "cd '$fsNmAbs' && find . -type f -printf '%s %p\n'";
       print( $p, $cmd, "\n" );
-      my @files = qx( find '$fsNmAbs' -type f );
+      my @files = qx( cd '$fsNmAbs' && find . -type f -printf '%s %p\n' );
       print( $p, $_, "\n" ) for @files;
+      my @mzrecs;
+      for ( @files ) {  chomp;
+         my ($bc,$fn) = split( ' ', $_, 2 );
+         $fn =~ s=^\Q./==;
+         my $locn = "$weblink/$fn" =~ s{([\s])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '\s' only FTTB)
+         push @mzrecs, "- $bc $locn $fn";
+         }
+      print "${p}mzrecs:\n";
+      print( $p, $_, "\n" ) for @mzrecs;
+
       last;
       }
 
