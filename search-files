@@ -269,6 +269,8 @@ sub handler_search_keys { my ($qy) = @_;
          -title=>$norm_search_terms,
          -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
          );
+   my $su = $qy->self_url =~ s=\?.*==r;
+   print $su;
    print "$pat\n" if showRegex;
    # print $qy->Dump();
    print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
