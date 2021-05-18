@@ -68,7 +68,7 @@ sub extract_yr { my($tgt) = @_;
    $rv;
    }
 
-sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
+sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat,$su) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
@@ -124,7 +124,7 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
          if( $findtype eq 'd' || ! $ext ) {
             my $reldir = $weblink =~ s=^$webroot/==r;
-            push @{$rv{$yr}}, $qy->a({href=>"$weblink"},$reldir);
+            push @{$rv{$yr}}, $qy->a({href=>"$weblink"},$reldir) .' '. $qy->a({href=>"$su?zipdowndirnm=$weblink"},'zipdown!');
             }
          else {
             my $link_wo_ext = substr( $weblink, 0, - length $ext );
@@ -251,11 +251,13 @@ sub search_keys_find_matches { my ($qy) = @_;
    #       }
    #    }
 
+   my $su = $qy->self_url =~ s=\?.*==r;
+   # print $su;
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
    for my $hr ( @treelocns ) {
       my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $isa =~ m=[$isaset]=;
-      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn($qy,$isa,$fsroot,$webroot,$findtype,$pat,$su);
       $cands   += $ccnt;
       $matches += $mcnt;
       }
@@ -269,8 +271,6 @@ sub handler_search_keys { my ($qy) = @_;
          -title=>$norm_search_terms,
          -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
          );
-   my $su = $qy->self_url =~ s=\?.*==r;
-   print $su;
    print "$pat\n" if showRegex;
    # print $qy->Dump();
    print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
