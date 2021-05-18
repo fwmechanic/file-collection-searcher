@@ -193,14 +193,24 @@ elsif( exists $qy->Vars->{zipdowndirnm} ) { handler_zipdownload( $qy ); }
 else { rsp404(); }
 
 sub handler_zipdownload { my ($qy) = @_;
-   rsp404();
+   my $weblink = $qy->Vars->{zipdowndirnm};  print "weblink=$weblink<p>\n";
+   print $qy->header;
+   print $qy->start_html(
+         -title=>"zipdownload $weblink",
+         -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
+         );
+   for my $hr ( @treelocns ) {
+      my ($fsroot,$webroot,$findtype) = @{$hr}{qw(fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
+      next unless $weblink =~ m=^\Q$webroot=;
+      print "hit on webroot=$webroot";
+      print " but findtype=$findtype != 'd'" unless $findtype eq 'd';
+      print "<p>\n";
+      my $fsNmAbs = $weblink =~ s=^\Q$webroot=$fsroot=r;
+      print "fsNmAbs=$fsNmAbs";
+      print " but it isn't a directory!" unless -d $fsNmAbs;
+      print "<p>\n";
+      }
 
-   # approach:
-   # my $weblink = $qy->Vars->{zipdowndirnm};
-   # iterate over @treelocns
-   #    find $treelocn{webroot} which best matches prefix of $weblink
-   # split $weblink into webroot and $FsNmRel, gen $FsNmAbs = "$treelocn{fsroot}/$FsNmRel"
-   # die unless $FsNmAbs is a dir
    # die unless $FsNmAbs dir tree size is < 1GB (or something more sophisticated)
    # do the needful to request mod_zip do its thing...
    #
@@ -211,6 +221,8 @@ sub handler_zipdownload { my ($qy) = @_;
    #
    # outside repo: modify nginx config to route
 
+   print $qy->end_html;
+   exit 0;
    }  # unimpl
 
 sub search_keys_find_matches { my ($qy) = @_;
