@@ -194,7 +194,7 @@ else { rsp404(); }
 
 sub handler_zipdownload { my ($qy) = @_;
    my $p = '<p>';
-   $qy->Vars->{zipdowndirnm} =~ m=^((?:(?!\.\./).)*)$=;
+   $qy->Vars->{zipdowndirnm} =~ m=^((?:(?!\.\./).)*)$=;   # untaint
    my $weblink = $1; print STDERR "weblink=$weblink$p\n";
    print $qy->header;
    print $qy->start_html(
@@ -204,6 +204,7 @@ sub handler_zipdownload { my ($qy) = @_;
    for my $hr ( @treelocns ) {
       my ($fsroot,$webroot,$findtype) = @{$hr}{qw(fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $weblink =~ m=^\Q$webroot=;
+      print $qy->h3("zipdownload $weblink"), "\n";
       print "hit on webroot=$webroot";
       print " but findtype=$findtype != 'd'" unless $findtype eq 'd';
       print "$p\n";
