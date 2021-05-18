@@ -192,6 +192,8 @@ if   ( exists $qy->Vars->{search_keys}  ) { handler_search_keys( $qy ); }
 elsif( exists $qy->Vars->{zipdowndirnm} ) { handler_zipdownload( $qy ); }
 else { rsp404(); }
 
+sub pr_et_us { return sprintf("%.6f", $_[0]); }
+
 sub handler_zipdownload { my ($qy) = @_;
    my $p = '<br>';
    $qy->Vars->{zipdowndirnm} =~ m=^((?:(?!\.\./).)*)$=;   # untaint
@@ -251,6 +253,7 @@ sub handler_zipdownload { my ($qy) = @_;
    # outside repo: modify nginx config to route
 
    print "${p}done\n";
+   print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ) ] ), "\n";
    print $qy->end_html;
    exit 0;
    }  # unimpl
@@ -334,7 +337,6 @@ sub handler_search_keys { my ($qy) = @_;
             }
          }
       }
-   sub pr_et_us { return sprintf("%.6f", $_[0]); }
    print $qy->h3( "Server response timing:" );
    print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ), " Tfind: ".pr_et_us( $et_find ), " Tsrch: ".pr_et_us( $et_srch ) ] ), "\n";
    print $qy->end_html;
