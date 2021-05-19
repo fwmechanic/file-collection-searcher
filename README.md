@@ -234,3 +234,17 @@ Units
 
   * haystack: # of files
   * WW & !WW: milliseconds
+
+
+## Notes on compiling nginx from source
+
+This is necessary to add [mod_zip](https://github.com/evanmiller/mod_zip) to `nginx`; also mod_zip doc recommends using (adding) [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module#readme) "[t]o wipe the X-Archive-Files header from the response sent to the client".
+
+* [[nginx.org] Building nginx from Sources](http://nginx.org/en/docs/configure.html) covers many (all?) options,
+* My main remaining puzzlement is how to ascertain the net prerequisites of the union of `nginx` and the modules I choose to compile into it?
+   * [Sample ubuntu `nginx` compile instructions](https://devopscraft.com/how-to-compile-nginx-from-source-on-ubuntu-20-04/) lists preprequisite apt packages in a scattered manner and w/o explanation as to how this package list was determined.  Perhaps "trial and error" is the standard/expected approach?
+* [[nginx.org] Nginx release source downloads](https://nginx.org/download/)
+* [[nginx.com] mod_zip page on nginx.com](https://www.nginx.com/resources/wiki/modules/zip/) seems to be a copy of the github README.
+* To list `configure` args of existing (i.e. distro-packaged) `nginx` binary:
+   * `2>&1 nginx -V | perl -ne '/^configure arguments: (.+)$/ && print $1' | xargs -n1 | sort`
+* [brief reddit thread on using mod_zip](https://www.reddit.com/r/nginx/comments/9jzqa6/trying_to_understand_mod_zip/)
