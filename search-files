@@ -38,20 +38,22 @@ use constant maxCopyrightYr => do {
 use constant q1 => "'";
 use constant q2 => '"';
 use constant bound_re        => '(?:\b|[_])' ;  # https://dev.to/kirklewis/string-interpolation-of-constants-in-perl-5-181o
-use constant bound_re_before => '(?:^|[\W_])';  # can't use \b because $qm may not consist of word chars only
-use constant bound_re_after  => '(?:$|[\W_])';  # can't use \b because $qm may not consist of word chars only
 
 sub gen_re_match_all_anyorder {
-   my %tok_remap = ( and => '(?:N|AND)', 'c#' => 'CSHARP', 'f#' => 'FSHARP' );
-   my @reraw;
-   for (@_) {  # construct regex matching lines containing, in any order, ALL of @_
-      my $qm = quotemeta( $_ );            #  match fragment
-      $qm = $tok_remap{lc $qm} if exists $tok_remap{lc $qm};
-      $qm = "${\bound_re_before}$qm${\bound_re_after}" if ($qm =~ m=[A-Z]=) && ! ($qm =~ m=[a-z]=); # all caps? match word
-      push @reraw, "(?=.*$qm)"; # https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
+   # https://www.perlmonks.org/?node_id=308753 (thread: https://www.perlmonks.org/?node_id=308744)
+   # to make a specialized version of \b that views "-" and "/" as "word characters" (sort of), you might use something like this:
+   # my $w = '\w/-';
+   my $w = shift or die "gen_re_match_all_anyorder: no args?";
+   my $b = "(?:(*negative_lookbehind:[$w])(*positive_lookahead:[$w])|(*positive_lookbehind:[$w])(*negative_lookahead:[$w]))";
+   # my @words = ($rec =~ /${b}[$w]+${b}/g);
+   my @assertions;
+   for my $rawterm (@_) {  # construct regex matching lines containing, in any order, ALL of @_
+      my $term = quotemeta( $rawterm );  #  match term
+      $term = "$b$term$b" if ($term =~ m=[A-Z]=) && ($term !~ m=[a-z]=); # all term alphas are caps (i.e. at least one uppercase-alpha and no lowercase-alphas)?: match word as defined by $b + $w
+      push @assertions, "(*positive_lookahead:.*$term)"; # https://stackoverflow.com/a/4389683 https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       }
-   my $rv = '^(?i)' . join('',@reraw) . '.*$'; # print "\npat=$rv\n";
-   return qr/$rv/;
+   my $rv = '^(?i)' . join('',@assertions) . '.*$'; # print "\npat=$rv\n";
+   return qr($rv);
    }
 
 sub extract_yr { my($tgt) = @_;
@@ -271,7 +273,7 @@ sub search_keys_find_matches { my ($qy) = @_;
       $skeys =~ s=${\q1}==g; # mimic qf file rename behavior
    my @search_keys = split( qr{[-\s,.:${\q2}]+}, $skeys ); # preserve: [+#]
    my $norm_search_terms = join(' ',@search_keys);
-   my $pat = gen_re_match_all_anyorder( @search_keys );
+   my $pat = gen_re_match_all_anyorder( '\w_', @search_keys );
 
    # WIP to allow processes colliding on flock $semfh to try the set of sem files in random/shuffle order
    # this would also require separating find-phase from search phase as the following should seek to complete all find-phases before searching
