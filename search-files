@@ -46,13 +46,34 @@ sub gen_re_match_all_anyorder {
    my $w = shift or die "gen_re_match_all_anyorder: no args?";
    my $b = "(?:(*negative_lookbehind:[$w])(*positive_lookahead:[$w])|(*positive_lookbehind:[$w])(*negative_lookahead:[$w]))";
    # my @words = ($rec =~ /${b}[$w]+${b}/g);
-   my @assertions;
+
+   # The following implements a brute-force solution to the performance problem
+   # caused by use of \b (or $b, the specialized version of \b) to implement
+   # whole-word search terms:
+   #
+   # The returned search regex consists of a sequence of look-ahead-assertions
+   # (LAA), each matching one user search term.  Previously, a word search term
+   # would be wrapped in $b and inserted in the LAA sequence, however the
+   # presence of \b/$b (caused by the presence of ANY word search term) caused a
+   # major (100% == 2x) performance hit.
+   #
+   # The current resolution is to always insert a non-word-search LAA for each
+   # word-search term sought (into @strs), and after all such non-word-search
+   # LAA's, append a word-search LAA for each word-search term (into @words).  The
+   # idea being that since the LAA's in the regex are evaluated from left to
+   # right (sequentially), the fast (non-word) LAA's, which serve to filter out
+   # all candidates which cannot possibly match their word-search LAA's, should
+   # be evaluated first.  Only if all word terms match (as strings) will the
+   # word-search LAA's (if any be applied) to those very few candidate strings
+   # passing string search screening.
+   #
+   my (@strs,@words);
    for my $rawterm (@_) {  # construct regex matching lines containing, in any order, ALL of @_
       my $term = quotemeta( $rawterm );  #  match term
-      $term = "$b$term$b" if ($term =~ m=[A-Z]=) && ($term !~ m=[a-z]=); # all term alphas are caps (i.e. at least one uppercase-alpha and no lowercase-alphas)?: match word as defined by $b + $w
-      push @assertions, "(*positive_lookahead:.*$term)"; # https://stackoverflow.com/a/4389683 https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
+      push @strs,  "(*positive_lookahead:.*$term)"; # https://stackoverflow.com/a/4389683 https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
+      push @words, "(*positive_lookahead:.*$b$term$b)" if ($term =~ m=[A-Z]=) && ($term !~ m=[a-z]=); # all term alphas are caps (i.e. at least one uppercase-alpha and no lowercase-alphas)?: match word as defined by $b + $w
       }
-   my $rv = '^(?i)' . join('',@assertions) . '.*$'; # print "\npat=$rv\n";
+   my $rv = '^(?i)' . join('',@strs) . join('',@words) . '.*$'; # print "\npat=$rv\n";
    return qr($rv);
    }
 
