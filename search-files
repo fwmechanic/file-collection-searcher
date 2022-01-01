@@ -53,19 +53,29 @@ sub gen_re_match_all_anyorder {
    #
    # The returned search regex consists of a sequence of look-ahead-assertions
    # (LAA), each matching one user search term.  Previously, a word search term
-   # would be wrapped in $b and inserted in the LAA sequence, however the
-   # presence of \b/$b (caused by the presence of ANY word search term) caused a
-   # major (100% == 2x) performance hit.
+   # would be wrapped in \b's before being inserted in the (one and only) LAA
+   # sequence in input (i.e. user-provided) order, however the presence of \b
+   # (caused by the presence of ANY word search term) caused a huge (100% == 2x)
+   # performance hit.
    #
-   # The current resolution is to always insert a non-word-search LAA for each
-   # word-search term sought (into @strs), and after all such non-word-search
-   # LAA's, append a word-search LAA for each word-search term (into @words).  The
-   # idea being that since the LAA's in the regex are evaluated from left to
-   # right (sequentially), the fast (non-word) LAA's, which serve to filter out
-   # all candidates which cannot possibly match their word-search LAA's, should
-   # be evaluated first.  Only if all word terms match (as strings) will the
-   # word-search LAA's (if any be applied) to those very few candidate strings
-   # passing string search screening.
+   # This is resolved by adding _TWO_ LAA's into the returned LAA sequence for
+   # each input word search term:
+   # 1. a non-word-search (string) LAA is added to @strs for every search term.
+   # 2. a word-search (\b) LAA is added to @words for every word search term.
+   #
+   # The returned sequence of LAA's is the concatenation of @strs followed by
+   # @words.  Thus all candidate strings must FIRST pass all @strs LAA's; these
+   # are very fast checks.  Only those few candidate strings passing all @strs
+   # LAA's undergo checking against the (SLOW) @words LAA's.  Assuming only a low
+   # percentage of candidate strings pass all @strs LAA's, the performance impact
+   # of the trailing (SLOW) @words LAA's is reduced to almost nothing (and
+   # testing shows this to be true).
+   #
+   # Given that our search is optimized by failing each candidate string as
+   # quickly as possible, a further optimization is to sort @strs LAA's by
+   # descending length: this causes the longest strings among the input search
+   # terms to be searched for first.  The naive idea being that longer strings
+   # are less likey to be found than short strings.
    #
    my (@strs,@words);
    for my $rawterm (@_) {  # construct regex matching lines containing, in any order, ALL of @_
@@ -73,7 +83,8 @@ sub gen_re_match_all_anyorder {
       push @strs,  "(*positive_lookahead:.*$term)"; # https://stackoverflow.com/a/4389683 https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       push @words, "(*positive_lookahead:.*$b$term$b)" if ($term =~ m=[A-Z]=) && ($term !~ m=[a-z]=); # all term alphas are caps (i.e. at least one uppercase-alpha and no lowercase-alphas)?: match word as defined by $b + $w
       }
-   my $rv = '^(?i)' . join('',@strs) . join('',@words) . '.*$'; # print "\npat=$rv\n";
+   @strs = sort { length $b <=> length $a } @strs;  # try to find longest strings first
+   my $rv = '^(?i)' . join('', @strs) . join('', @words) . '.*$'; # print "\npat=$rv\n";
    return qr($rv);
    }
 
