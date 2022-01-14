@@ -219,21 +219,16 @@ This brings performance back down to 325mS; not awesome, but massively better th
 
 ## Benchmarking
 
-Tsearch has 2 performance varietals:
-  * WW: search includes whole-word-match (all CAPS) terms and
-  * !WW: search DOES NOT include any whole-word-match (all CAPS) terms
-
-WW searches are noticeably slower than !WW searches.
-
-| Date | haystack | WW | !WW | server | OS |
-| ---- | -------- | -- | --- | ----- | ----- |
-| 20.07 |  85295 | 370 | 210 | TS140 i3-4130 16GB RAM | Ubuntu 14.04(!) |
-| 20.10 |  90202 | 365 | 170 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
+| Date | haystack | Toverall | server | OS |
+| ---- | -------- |      --- | ----- | ----- |
+| 20.07 |  85295  |      210 | TS140 i3-4130 16GB RAM | Ubuntu 14.04(!) |
+| 20.10 |  90202  |      170 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
+| 22.01 | 113265  |      233 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
 
 Units
 
   * haystack: # of files
-  * WW & !WW: milliseconds
+  * Toverall: milliseconds
 
 
 ## Notes on compiling nginx from source
