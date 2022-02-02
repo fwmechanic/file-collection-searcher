@@ -23,7 +23,7 @@ personal-server-local directory trees.
 
 # Features Under Consideration
   * candidate enhanced-search features
-     * "Resolve ER": I often initially obtain "ER" (Early Release) ebooks, which are typically superseded months later by final releases (at which time the "ER" ebooks become superfluous and should be deleted or ignored).
+     * "Resolve ER" (Early Release): "ER" ebooks are typically superseded months later by final releases (at which time the "ER" ebooks become superfluous and should be deleted or ignored).
         * separate CGI script to perform ER-retirement "analysis": for all ER files, find non-ER name-alikes.
      * "Show all hashtags": ranked by occurrence-count
      * "find possible (filename) dups"
@@ -33,9 +33,33 @@ personal-server-local directory trees.
   * candidate offsite actions:
      * "Search-engine search"
      * "Amazon search"
+  * Use nginx mod_zip to zip e.g. music albums on demand.  Partially implemented.
+  * API's for external `curl`+`jq` scripting
+     * return metadata (size, SHA-sum) of all matches.
 
 # Setup
 
+## Unify content using symlinks
+
+Create a dir containing symlinks to disparate content dirs:
+```
+mkdir /var/www-filesearcher-data
+ln -s /mnt/smb/5t_a/data/audiobooks /var/www-filesearcher-data/audiobooks
+ln -s /mnt/smb/5t_a/data/ebooks /var/www-filesearcher-data/ebooks
+ln -s /mnt/smb/5t_a/data/Video /var/www-filesearcher-data/Video
+ln -s /mnt/smb/pri/data/public/MP3 /var/www-filesearcher-data/MP3
+ln -s /mnt/smb/pri/data/public/MP3_extranea /var/www-filesearcher-data/MP3_extranea
+ls -l /var/www-filesearcher-data/
+   ./
+   ../
+   audiobooks -> /mnt/smb/5t_a/data/audiobooks/
+   ebooks -> /mnt/smb/5t_a/data/ebooks/
+   MP3 -> /mnt/smb/pri/data/public/MP3/
+   MP3_extranea -> /mnt/smb/pri/data/public/MP3_extranea/
+   Video -> /mnt/smb/5t_a/data/Video/
+```
+This facilitates future shuffling of content as HDD volumes are migrated, etc.
+## install nginx and CGI-related plumbing progs, configure nginx
 On Ubuntu 20.04 (or later, presumably):
   * run `apt-get install nginx fcgiwrap libcgi-pm-perl`
   * set Nginx config (Ubuntu: `/etc/nginx/sites-enabled/default`) as follows
@@ -55,26 +79,8 @@ server {
         index index.html;
     }
 
-    location /files/audiobooks {
-        alias /mnt/smb/5t_a/data/audiobooks;
-        autoindex on;
-        autoindex_exact_size off;
-    }
-
-    location /files/video-downloads {
-        alias /mnt/smb/5t_a/data/Video;
-        autoindex on;
-        autoindex_exact_size off;
-    }
-
-    location /files/ebooks {
-        alias /mnt/smb/5t_a/data/ebooks;
-        autoindex on;
-        autoindex_exact_size off;
-    }
-
-    location /files/mp3 {
-        alias /mnt/smb/5t_a/data/MP3;
+    location /files {
+        alias /var/www-filesearcher-data;  # dir containing symlinks to disparate content dirs, created above
         autoindex on;
         autoindex_exact_size off;
     }
@@ -90,6 +96,7 @@ server {
 }
 
 ```
+Run `nginx -t` to test config-file changes.
 
 The above, in combination with the contents of this repo, creates from n
 disjoint content trees on the server, `/mnt/smb/pri/data/public/ebooks` and
@@ -207,29 +214,22 @@ After suffering with this situation for too long, I hacked up the following:
 
  * Created a shell script `modifylog` that runs `inotifywait -r -m $dir` ($dir contains 60+K files),
    logging only _modifying_ events to file `$dir/modify.log`.
-    * EX: `./modifylog /mnt/smb/pri/data/public/ebooks/`
-    * for now, `modifylog` must be invoked _manually_.  Current recipe can be found in comments of %~dp0modifylog itself.
+    * for now, `modifylog` must be invoked _manually_ each time the server is rebooted.
  * Because the user which `search-files` runs as (www-data) does not have write access to the dir containing `search-files`, and because that user does not have a /home/ dir, a dedicated directory for this user to write find-cache files must be created.
     * Created dirs `/cgi-app-cache/search-files` and gave user www-data exclusive write access to these.
  * Modified `search-files` script to write its (per dir tree) `find` output to `/cgi-app-cache/search-files/$dir-leafname`
  * Modified `search-files` script to read `find` output from `/cgi-app-cache/search-files/$dir-leafname`.
  * Modified `search-files` script to run `find` (overwriting `/cgi-app-cache/search-files/$dir-leafname`) iff mtime of file `$dir/modify.log` is newer than mtime of `/cgi-app-cache/search-files/$dir-leafname`.
 
-This brings performance back down to 325mS; not awesome, but massively better than 25,000mS!
+This brings performance back down to the 300mS range; not awesome, but massively better than 25,000mS!
 
 ## Benchmarking
 
-| Date | haystack | Toverall | server | OS |
+| Date | # of files | ms | server | OS |
 | ---- | -------- |      --- | ----- | ----- |
 | 20.07 |  85295  |      210 | TS140 i3-4130 16GB RAM | Ubuntu 14.04(!) |
 | 20.10 |  90202  |      170 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
 | 22.01 | 113265  |      233 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
-
-Units
-
-  * haystack: # of files
-  * Toverall: milliseconds
-
 
 ## Notes on compiling nginx from source
 

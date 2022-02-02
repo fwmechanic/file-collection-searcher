@@ -16,7 +16,7 @@ use Fcntl qw(:flock SEEK_END);
 # print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
 
 use constant cachedir => "/cgi-app-cache/search-files";  # ugly hack: these two dirs are OWNED and writable only by www-data
-use constant common_fsroot => '/mnt/smb/5t_a/data';
+use constant common_fsroot => '/var/www-filesearcher-data';  # contains symlinks to actual file trees
 
 # mode controls:
 use constant showRegex => 0;
@@ -192,13 +192,10 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat,$su) = @_;
 # the vast majority of the time, a user will want to download the (cropped) pdf
 # version of the ebook.  Since there are potentially many variants (formats and
 # croppings) of the SAME book (in INCREASING order of preference:
-#    * book.(chm|djvu|azw3|mobi|epub)
-#    * book.azw3
-#    * book.mobi
-#    * book.epub
-#    * book.pdf
+#    * book.(djvu|azw3|chm|mobi|epub|pdf)
 #    * book_cropped.pdf  (locally generated from book.pdf)
-#    * book.medtype.pdf  (locally generated from book.(chm|azw3|mobi|epub))
+#    * book.medtype.pdf  (locally generated from book.(azw3|chm|mobi|epub))
+#    * book.code.zip     (git repo(s) associated with book text)
 # ) it would be helpful for these to collapse into a single line containing
 # multiple links, with the best version ( being left-most (and the longest
 # link).
@@ -209,10 +206,11 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat,$su) = @_;
 my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp mappings
    # HACK ALERT: handler_search_keys call tree adds {matches} to these array entries!!!
    # align with /etc/nginx/sites-enabled/default (must edit as root)
-   { isa=>'b', ft=>'f', cat=>'Books'      , webroot=>'/files/ebooks'          , fsroot=>common_fsroot.'/ebooks'     },
-   { isa=>'m', ft=>'d', cat=>'Music'      , webroot=>'/files/mp3'             , fsroot=>common_fsroot.'/MP3'        },
-   { isa=>'a', ft=>'f', cat=>'Audiobooks' , webroot=>'/files/audiobooks'      , fsroot=>common_fsroot.'/audiobooks' },
-   { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/video-downloads' , fsroot=>common_fsroot.'/Video'      },
+   { isa=>'b', ft=>'f', cat=>'Books'      , webroot=>'/files/ebooks'       , fsroot=>common_fsroot.'/ebooks'       },
+   { isa=>'m', ft=>'d', cat=>'Music'      , webroot=>'/files/MP3'          , fsroot=>common_fsroot.'/MP3'          },
+ # { isa=>'m', ft=>'d', cat=>'Music'      , webroot=>'/files/MP3_extranea' , fsroot=>common_fsroot.'/MP3_extranea' },
+   { isa=>'a', ft=>'f', cat=>'Audiobooks' , webroot=>'/files/audiobooks'   , fsroot=>common_fsroot.'/audiobooks'   },
+   { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/Video'        , fsroot=>common_fsroot.'/Video'        },
    );
 
 use CGI;

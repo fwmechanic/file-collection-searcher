@@ -2,35 +2,37 @@
 
 die() { printf %s "${@+$@$'\n'}" 1>&2 ; exit 1 ; }
 
-[[ "$1" ]] || die "missing (dirnm) parameter"
-[[ -d "$1" ]] || die "$1 is not a dir"
-logfnm="$1/.modify.log"
-writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")"
-[[ -z "$writerpid" ]] || die "exiting: pid $writerpid has opened $logfnm"
-namei -l "$logfnm"
+common_fsroot='/var/www-filesearcher-data'
 
-# https://stackoverflow.com/a/49183740 orig: ( cd /; umask 0; setsid your_script.sh </dev/null &>/dev/null & ) &
-( cd /; umask 0; setsid inotifywait --recursive --monitor --event close_write --event moved_to --exclude "$logfnm" "$1" --outfile "$logfnm" </dev/null &>/dev/null & ) &
-writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")" ; echo "$logfnm writerpid=$writerpid"
-sleep 3
-# note that if the next line shows the writerpid to have disappeared, its likely that inotifywait died:
-#
-#   Failed to watch /mnt/smb/5t_a/data/Video; upper limit on inotify watches reached!
-#   Please increase the amount of inotify watches allowed per user via `cat /proc/sys/fs/inotify/max_user_watches'.
-#
-# see e.g. https://unix.stackexchange.com/questions/13751/kernel-inotify-watch-limit-reached
-#
-writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")" ; echo "$logfnm writerpid=$writerpid"
+start_modify_log() (
+   [[ "$1" ]] || die "missing (dirnm) parameter"
+   [[ -d "$1" ]] || die "$1 is not a dir"
+   logfnm="$1/.modify.log"
+   writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")"
+   [[ -z "$writerpid" ]] || die "exiting: pid $writerpid has opened $logfnm"
+   namei -l "$logfnm"
 
-exit 0
+   # https://stackoverflow.com/a/49183740 orig: ( cd /; umask 0; setsid your_script.sh </dev/null &>/dev/null & ) &
+   ( cd /; umask 0; setsid inotifywait --recursive --monitor --event close_write --event moved_to --exclude "$logfnm" "$1" --outfile "$logfnm" </dev/null &>/dev/null & ) &
+   writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")" ; echo "$logfnm writerpid=$writerpid"
+   sleep 3
+   # note that if the next line shows the writerpid to have disappeared, its likely that inotifywait died:
+   #
+   #   Failed to watch /mnt/smb/5t_a/data/Video; upper limit on inotify watches reached!
+   #   Please increase the amount of inotify watches allowed per user via `cat /proc/sys/fs/inotify/max_user_watches'.
+   #
+   # see e.g. https://unix.stackexchange.com/questions/13751/kernel-inotify-watch-limit-reached
+   #
+   writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")" ; echo "$logfnm writerpid=$writerpid"
+   )
 
 # recipe for starting up
 
 pkill inotifywait
 
 pgrep -l inotifywait
-./modifylog /mnt/smb/5t_a/data/ebooks
-./modifylog /mnt/smb/5t_a/data/MP3
-./modifylog /mnt/smb/5t_a/data/audiobooks
-./modifylog /mnt/smb/5t_a/data/Video
+start_modify_log "$common_fsroot/ebooks"
+start_modify_log "$common_fsroot/MP3"
+start_modify_log "$common_fsroot/audiobooks"
+start_modify_log "$common_fsroot/Video"
 pgrep -l inotifywait
