@@ -79,6 +79,8 @@ sub gen_re_match_all_anyorder {
    #
    my (@strs,@words);
    for my $rawterm (@_) {  # construct regex matching lines containing, in any order, ALL of @_
+      $rawterm =~ s|([CF])#|\1SHARP|;
+      $rawterm =~ s|([cf])#|\1sharp|;
       my $term = quotemeta( $rawterm );  #  match term
       push @strs,  "(*positive_lookahead:.*$term)"; # https://stackoverflow.com/a/4389683 https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       push @words, "(*positive_lookahead:.*$b$term$b)" if ($term =~ m=[A-Z]=) && ($term !~ m=[a-z]=); # all term alphas are caps (i.e. at least one uppercase-alpha and no lowercase-alphas)?: match word as defined by $b + $w
