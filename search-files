@@ -304,6 +304,7 @@ sub search_keys_find_matches { my ($qy) = @_;
       $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that browser can inject when user hits browser-'back'.
       $skeys =~ s=${\q1}==g; # mimic qf file rename behavior
    my @search_keys = split( qr{[-\s,.:${\q2}]+}, $skeys ); # preserve: [+#]
+   @search_keys = grep { not m{^(?:and|[Bb]y)$} } @search_keys;  # drop common paste noise terms
    my $norm_search_terms = join(' ',@search_keys);
    my $pat = gen_re_match_all_anyorder( '\w_', @search_keys );
 
