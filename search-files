@@ -124,7 +124,8 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat,$su) = @_;
          # print STDERR "HIT! $findoutfnm newer than $modlogfnm\n";
          }
       else {
-         my $findcmd = "cd $fsroot && find . -type $findtype > $findoutfnm";
+         my $ft = $findtype; $ft .= ',l' if $ft =~ m|f|;
+         my $findcmd = "cd '$fsroot' && find . -type '$ft' > '$findoutfnm'";
          # print STDERR "running '$findcmd'\n";
          my $t_find_start = time();
          system( $findcmd );
@@ -259,9 +260,9 @@ sub handler_zipdownload { my ($qy) = @_;
       #              "(properly URL-encoded)" (which means any spaces in the location must be converted to e.g. '%20')
       #   filename   name the file written to the zipfile is given; may include a directory
 
-      my $cmd = "cd '$fsNmAbs' && find . -type f -printf '%s %p\n'";
+      my $cmd = "cd '$fsNmAbs' && find . -type f,l -printf '%s %p\n'";
       print( $p, $cmd, "\n" );
-      my @files = qx( cd '$fsNmAbs' && find . -type f -printf '%s %p\n' );
+      my @files = qx( $cmd );
       print( $p, $_, "\n" ) for @files;
       my @mzrecs;
       for ( @files ) {  chomp;
