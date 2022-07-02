@@ -172,11 +172,13 @@ improved search performance massively, but of course did nothing to make this
 file-collection-search functionality (and the file collection itself) accessible
 to all (W)LAN clients.
 
-The latest evolution (embodied in the content of this repo) is to roll all of
-this into a (server-side) CGI Perl script; the server-side `find` command is now
-executed only when the "find cache" is expired.  This is hooked into an nginx
-web-server instance, which also serves the collection files via search-result
-links and "browse mode" (using nginx autoindex mode).
+The latest evolution (embodied in the content of this repo) is to roll all
+of this into a (server-side) CGI Perl script; the server-side `find` command
+is now executed only when the "find cache" (embodied as a file containing
+`find`'s output) is expired (by use of `inotifywait` daemons; details
+below).  This is hooked into an nginx web-server instance, which also serves
+the collection files via search-result links and offers a crude interactive
+"dir tree browser" (using nginx autoindex mode).
 
 The idea that I'm using CGI-Perl in a new-in-2017 project will probably
 _appall_ anyone who reads this, but: I am not a "web developer" (so I didn't
@@ -189,10 +191,10 @@ module (which has, between Ubuntu 14.04 and 18.04, been banished from Perl5's
 stdlib) is about as far as I'm willing to go in this direction.
 
 As noted above, the earlier (client) versions of this software were written
-in Lua, then Perl 5 (which I've used, off and on, for decades), and with a
-very recent attempt to use go/golang (1.9.2) having been abandoned due to
-poor performance related to string searching[1] vs. my Perl implementation),
-I have chosen to stick with mainstream single-purpose external components
+in Lua, then Perl 5 (which I've used for decades), and with a very recent
+attempt to use go/golang (1.9.2) having been abandoned due to poor
+performance related to string searching[1] vs. my Perl implementation), I
+have chosen to stick with mainstream single-purpose external components
 (nginx), obsolescent technologies (CGI) and a frequently denigrated but
 "tried and true" "mature" language (Perl 5).  Hey, I could've used TCL
 (naaaw)!
@@ -203,7 +205,9 @@ single regex that checks for matches of ALL word/frag matches occurring in any
 order in the target string.  To achieve the same end in golang I had to create a
 slice of regexes, one per word/frag, and loop over this slice until the first
 miss is encountered, _for each candidate filename_, resulting in the search
-process taking > 10x longer vs. Perl (yes I was amazed).
+process taking > 10x longer vs.  Perl (yes I was amazed; go authorities
+explain this as a consequence of go losing out to C and go not implementing
+the same flavor of regex as Perl).
 
 *Update 20190530*: performance of the find command imploded when run on
 circa 60K file-count dir tree: > 25 seconds to immediately re-run a search
@@ -226,10 +230,40 @@ This brings performance back down to the 300mS range; not awesome, but massively
 ## Benchmarking
 
 | Date | # of files | ms | server | OS |
-| ---- | -------- |      --- | ----- | ----- |
-| 20.07 |  85295  |      210 | TS140 i3-4130 16GB RAM | Ubuntu 14.04(!) |
-| 20.10 |  90202  |      170 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
-| 22.01 | 113265  |      233 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
+| ---- | -------- |  --- | ----- | ----- |
+| 20.07 |  85295  |  210 | TS140 i3-4130 16GB RAM | Ubuntu 14.04(!) |
+| 20.10 |  90202  |  170 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
+| 22.01 | 113265  |  233 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
+| 22.06 | 121936  |  241 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
+
+# Future performance-related directions
+
+Performance per above benchmark results is adequate and stable, but I still
+hope for better.  The lazy approach (which I'm currently taking) is to await
+the arrival of pending upgrades:
+
+ * Ubuntu 22.04.1 (2022/08/04)
+ * a new server (PC hardware): my TS140 with i3-4130 is getting long in the
+   tooth.  However it'll be critical to find a replacement that provides a
+   significant single-core performance improvement:
+    * this CGI program is single-threaded, and my investigation of Perl's
+      threads and its other concurrent work related facilities left me
+      decidedly unenthused.
+ * even more RAM to maximize the presence of media-storage directory (tree)
+   in the OS filesystem cache (reducing the runtime of `find`) and provide
+   headroom for inotify kernel data, all as the sizeof my media storage
+   disk volumes continues its inexorable growth.
+
+The obvious traditional approach which I have till now eschewed (storing the
+`find` output, indexed by all component words, in some sort of database and
+querying the database for matches) is something I've been thinking about
+periodically.  I've not taken action due to
+
+ * not wanting to add the complexity of syncing two sources of truth (filesystem content, database).
+    * mapping each filesystem modification event into an INSERT/REPLACE/DELETE DB op in anything approaching real time seems like a gigantic hassle.
+    * the cruder approach of completely deleting the database and refreshing it in its entirety from a full `find` output, just seems, well, crude.
+       * getting more specific, the idea of using Perl's DBD::SQLite to write/read a character and word-indexed SQLite db file in lieu of the current text file (containing raw `find` output).
+ * the current solution looks for not only isolated words but strings (within a word); indexing all word-substrings within a sequence of words strikes me as crazy.
 
 ## Notes on compiling nginx from source
 
