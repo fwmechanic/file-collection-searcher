@@ -1,10 +1,19 @@
 #!/usr/bin/perl -T
+# -T == taint mode: https://perldoc.perl.org/perlsec#Laundering-and-Detecting-Tainted-Data
+
 use strict;
 use warnings;
 use Time::HiRes qw( time );
 use Encode;
+use English;
 use Data::Dumper;
+use File::Find;
+use File::Temp qw( tempdir );
 use Fcntl qw(:flock SEEK_END);
+use IO::Compress::Zip qw(zip $ZipError :constants);
+# ^^^-end core Perl modules, vvv-begin non-core modules:
+use CGI;  # from `apt-get install libcgi-pm-perl`
+use CGI::Carp qw(fatalsToBrowser warningsToBrowser set_message);  # from `apt-get install libcgi-pm-perl`
 
 # see STDERR -> /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
 # testing cmdlines using http://perldoc.perl.org/CGI.html#DEBUGGING
@@ -15,7 +24,7 @@ use Fcntl qw(:flock SEEK_END);
 # my $username = getpwuid($<);
 # print STDERR "\npwd=$pwd\nusername=$username\nHOME=$ENV{HOME}\n";
 
-use constant cachedir => "/cgi-app-cache/search-files";  # ugly hack: these two dirs are OWNED and writable only by www-data
+use constant cachedir => "/cgi-app-cache/search-files";  # in lieu of config file or parameter support: these two dirs are OWNED and writable only by www-data
 use constant common_fsroot => '/var/www-filesearcher-data';  # contains symlinks to actual file trees
 
 # mode controls:
@@ -37,7 +46,7 @@ use constant maxCopyrightYr => do {
 
 use constant q1 => "'";
 use constant q2 => '"';
-use constant bound_re        => '(?:\b|[_])' ;  # https://dev.to/kirklewis/string-interpolation-of-constants-in-perl-5-181o
+use constant bound_re => '(?:\b|[_])' ;  # https://dev.to/kirklewis/string-interpolation-of-constants-in-perl-5-181o
 
 sub gen_re_match_all_anyorder {
    # https://www.perlmonks.org/?node_id=308753 (thread: https://www.perlmonks.org/?node_id=308744)
@@ -152,7 +161,7 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat,$su) = @_;
          ++$unique_cands{$base};
          }
       ++$cands;
-      if( $tgt =~ m,$pat, ) { # print "$tgt\n" ;
+      if( $tgt =~ m,$pat, ) { # print "$tgt\n" ;  # MATCH!  slow path
          ($base,$ext) = $split_fnm_base_ext->($fnm) unless $base;
          ++$unique_matches{$base} if count_uniq_matches;
          ++$matches;
@@ -216,7 +225,6 @@ my @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp ma
    { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/Video'        , fsroot=>common_fsroot.'/Video'        },
    );
 
-use CGI;
 my $qy = CGI->new;
 # dispatch
 sub rsp404 {
@@ -231,65 +239,207 @@ sub pr_et_us { return sprintf("%.6f", $_[0]); }
 
 sub handler_zipdownload { my ($qy) = @_;
    my $p = '<br>';
-   $qy->Vars->{zipdowndirnm} =~ m=^((?:(?!\.\./).)*)$=;   # untaint
-   my $weblink = $1; print STDERR "weblink=$weblink$p\n";
-   print $qy->header;
-   print $qy->start_html(
+   my ($weblink) = $qy->Vars->{zipdowndirnm} =~ m=^((?:(?!\.\./).)*)$=; # print "weblink=$weblink$p\n";   # untaint
+   my @dbglog;  # since if we output (html headers and) any text, we'll be unable to download the target file, we collect log text and output on failure
+   my $carp_msg_handler = sub {
+      my $msg = shift;
+      local $LIST_SEPARATOR = "\n";
+      print "$p@dbglog\n";
+      print "${p}${p}Error: $msg" if $msg;
+      };
+   set_message( $carp_msg_handler );
+   my $dl = sub { push @dbglog, join( ' ', @_ ) if @_; };
+   $dl->( $qy->header );
+   $dl->( $qy->start_html(
          -title=>"zipdownload $weblink",
          -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
-         );
-   for my $hr ( @treelocns ) {
+         )
+        );
+   for my $hr ( @treelocns ) {  # linear search to find treelocn containing $weblink so we can xlat to fs locn
       my ($fsroot,$webroot,$findtype) = @{$hr}{qw(fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $weblink =~ m=^\Q$webroot=;
-      print $qy->h3("zipdownload $weblink"), "\n";
-      print "hit on webroot=$webroot";
-      print " but findtype=$findtype != 'd'" unless $findtype eq 'd';
-      print "$p\n";
+      $dl->( $qy->h3("zipdownload $weblink"), "\n" );
+      $dl->( "hit on webroot=$webroot" );
+      $dl->( " but findtype=$findtype != 'd'" ) unless $findtype eq 'd';
+      $dl->( "$p\n" );
       my $fsNmAbs = $weblink =~ s=^\Q$webroot=$fsroot=r;
-      print "fsNmAbs=$fsNmAbs";
-      print " but it isn't a directory!" unless -d $fsNmAbs;
-      print "$p\n";
+      $dl->( "fsNmAbs=$fsNmAbs" );
+      $dl->( " but it isn't a directory!" ) unless -d $fsNmAbs;
+      $dl->( "$p\n" );
 
-      # https://www.nginx.com/resources/wiki/modules/zip/
-      # response stream format
-      # crc32 bytecount location filename\r\n
-      # where
-      #   crc32      of the file, or '-' if not available
-      #   bytecount  of the file
-      #   location   where the file can be read, in the context of the active nginx config file
-      #              "(properly URL-encoded)" (which means any spaces in the location must be converted to e.g. '%20')
-      #   filename   name the file written to the zipfile is given; may include a directory
+      my $td = tempdir( DIR => cachedir, CLEANUP => 1 );
+      $dl->( "tempdir=$td$p\n" );
 
-      my $cmd = "cd '$fsNmAbs' && find . -type f,l -printf '%s %p\n'";
-      print( $p, $cmd, "\n" );
-      my @files = qx( $cmd );
-      print( $p, $_, "\n" ) for @files;
-      my @mzrecs;
-      for ( @files ) {  chomp;
-         my ($bc,$fn) = split( ' ', $_, 2 );
-         $fn =~ s=^\Q./==;
-         my $locn = "$weblink/$fn" =~ s{([\s])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '\s' only FTTB)
-         push @mzrecs, "- $bc $locn $fn";
+      # copied from my repo=shell/m3u
+      my ($reToZip,$reM3u) =
+      do {
+         my @playableExts   = qw( mp3 mp4 mpg m4a m4b wmv flac f4v flv );
+         my @playAssistExts = qw( srt vtt );
+         sub extRE {
+            my $rv = '\.(?i)(?:' . join('|', @_) . ')$'; # $dl->( "\npat=$rv\n" );
+            return qr($rv);
+            }
+         ( extRE( @playableExts, @playAssistExts )
+         , extRE( @playableExts )
+         )
+         };
+      my $rePathLeaf = qr([^/]+$);
+      my ($zipfnm) = $fsNmAbs =~ m!($rePathLeaf)!;  $zipfnm .= '.zip';
+      my $reFsNmAbs = '^' . quotemeta($fsNmAbs =~ s!$rePathLeaf!!r);  $dl->( "reFsNmAbs=$reFsNmAbs$p\n" );
+      my (@srcfnms,@m3ufnms,%eachdir);
+      find(
+         { wanted => sub {
+            return unless -f $_;             # $dl->( "F0=$_\n" );                 # sanspath i.e. leaf name: might be a dir; ignore these
+            ++$eachdir{$File::Find::dir};    # $dl->( "F1=$File::Find::name\n" );  # == "$File::Find::dir/$_": NB !!! WE ARE CD'D INTO $File::Find::dir !!!
+            push @srcfnms, $File::Find::name if $_ =~ $reToZip;
+            push @m3ufnms, $File::Find::name if $_ =~ $reM3u;
+            },
+         , untaint => 1  # https://perldoc.perl.org/File::Find#%25options
+         , untaint_pattern => qr|^([-+@\w\s./]+)$|  # update (for other filename chars) if 'Insecure dependency in chdir while running with -T switch' is encountered
+         }, $fsNmAbs
+         );  # temporarily CD's into $fsNmAbs dir tree dirs;
+
+      @srcfnms = sort @srcfnms;  # prettify for $dl; no functional need
+      $dl->( "${p}srcfnms:\n" );
+      { # we create zip file w/Z_NO_COMPRESSION so sum of input filesizes is an accurate predictor of zip file size
+      my ($maxMB, $sumMB) = (1500, 0);
+      for( @srcfnms ) {
+         my $fMB = int((stat $_)[7] / (1024*1024));
+         $dl->( $p, sprintf( '%3dMB ', $fMB ), $_, "\n" );
+         $sumMB += $fMB;
          }
-      print "${p}mzrecs:\n";
-      print( $p, $_, "\n" ) for @mzrecs;
+      die "total playable file size ${sumMB}MB > ${maxMB}MB limit\n" if $sumMB > $maxMB;
+      $dl->( "${p}total playable file size ${sumMB}MB <= ${maxMB}MB limit\n" );
+      }
+
+      # prior to zipping generate a m3u file in eachdir _if_ it or any of its child dirs contain @m3ufnms
+
+      # since this process does NOT have write access to $fsNmAbs, we will write
+      # any generated m3u files to a tempdir, and use zip-time archive filename
+      # mapping (FilterName) to include these files in the zip file with the
+      # intended user-visible names
+      my $tempfIx = 0;
+      my %tempFnmMap;
+      sub wr_array { my ($ofnm,$aref) = @_;
+         my $tmpFnm = sprintf( "$td/wr_array_%03d", $tempfIx++ );
+         $dl->( "${p}writing $ofnm ($tmpFnm)\n" );
+         $tempFnmMap{$tmpFnm} = $ofnm;
+         $ofnm              = $tmpFnm;
+         open my $ofh, ">", $ofnm or die "can't open $ofnm for writing: $!\n";
+         local $LIST_SEPARATOR = "\n";
+         print $ofh "@$aref";
+         push @srcfnms, $ofnm;
+         }
+      sub write_m3u { my ($destdir,$aref) = @_; # $dl->( "F0=$destdir\n" );
+         my @results;
+         my $ddre = quotemeta($destdir);
+         for my $fnm ( @$aref ) {
+            if( my ($fnm_rel) = $fnm =~ m|^$ddre[\\/](.+)$| ) { # $dl->( "F1=$fnm_rel\n" );
+               $fnm_rel =~ s!/+!\\!g;  # $dl->( "F2=$fnm_rel\n" );
+               $fnm_rel =~ s!\\+!\\!g; # $dl->( "F3=$fnm_rel\n" );
+               $fnm_rel =~ s!^\.\\!!;  # $dl->( "F4=$fnm_rel\n" );
+               push @results, $fnm_rel;
+               }
+            }
+         if( @results > 1 ) {
+            @results = sort @results;
+            wr_array( "$destdir/00.m3u", \@results ) ;  # no playlist file needed for single playable file
+            }
+         }
+
+      $dl->( "${p}\n" );
+      write_m3u( $_, \@m3ufnms ) for ( sort keys %eachdir );
+      @srcfnms = sort @srcfnms;  # merge m3u additions
+
+      $dl->( "${p}${p}srcfnms:\n" ); $dl->( $p, $_, "\n" ) for @srcfnms;
+      {
+      # A VERY annoying property of map BLOCK that I forgot(?): modifying $_ in
+      # BLOCK modifies the SOURCE array element that $_ is an alias for (so in
+      # this case, acting on $_ directly ($_ = $tempFnmMap{$_} // $_;) causes
+      # @srcfnms to be modified).
+      #
+      # Following are 3 ways to workaround:
+      my @mappedSrcFnms = map {                  ($tempFnmMap{$_} // $_)    =~ s!$reFsNmAbs!!r } @srcfnms;  # perform return-subst on a rvalue (expression)
+    # my @mappedSrcFnms = map { my $f           = $tempFnmMap{$_} // $_; $f =~ s!$reFsNmAbs!!r } @srcfnms;  # use new var containing copy of $_ value in lieu of $_
+    # my @mappedSrcFnms = map { local $_=$_; $_ = $tempFnmMap{$_} // $_;       s!$reFsNmAbs!!r } @srcfnms;  # local-ize $_ https://stackoverflow.com/a/63167
+      $dl->( "${p}${p}mappedSrcFnms:\n" ); $dl->( $p, $_, "\n" ) for @mappedSrcFnms;
+      }
+
+      $dl->( "${p}dope done\n" );
+      $dl->( $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ) ] ), "\n" );
+
+      my $absZipfnm = "$td/zipfile";  # name of this file is independent of downloaded filename
+
+      # Create zip file by writing it to $absZipfnm, then immediately cat the
+      # entire file to STDOUT, then delete it.  Drawbacks: download doesn't begin
+      # until zip file creation is complete.  Performance mitigations: we create
+      # the zip file using Z_NO_COMPRESSION for fastest creation and decompress
+      # speed (the theory being that mp3 files are already optimally compressed,
+      # thus we aren't using zip format to obtain compression, but rather to
+      # package multiple dir-organized files with integrity checking into a
+      # single downloadable file), and write it to SSD (so pretty fast).
+      # Benefits: having the complete zip file in hand prior to download allows
+      # us to supply content_length in the response header so the http client can
+      # see a finite-sized download progressing. $absZipfnm (along with all other
+      # files in $td) is auto-deleted when this process exits (the download
+      # having completed by then), preventing runaway tempfile disk consumption.
+      #
+      # The alternative approach would be to stream the zip file bytes as
+      # they're being created onto the wire.  Benefits: possibly shorter time
+      # before download commences, no concerns about free disk space
+      # availability, time consuming disk writes, or temp file cleanup.  But
+      # since most albums are no more than a few hundred MB, it doesn't take much
+      # time to write that many bytes, tempfile auto-cleanup is a solved problem,
+      # and time-to-first zipfile byte being downloaded is often gated by the
+      # time required to spinup the HDD containing the mp3 files, a delay which
+      # affects both approaches similarly (and dwarfs the time required to write
+      # a few hundred MB to SSD).  And of course we can't supply content_length
+      # in the response header since it isn't known yet.  In
+      # https://www.perlmonks.org/?node_id=929668 an author of zip module gives
+      # streaming examples, BUT! these streaming examples rely on a feature
+      # FilterEnvelope nee FilterContainer that (since 2011) NEVER made it into
+      # the released version (or alternatively IS NOT DOCUMENTED)!!!  Maybe
+      # there are clues as to how the same end can be accomplished by other means
+      # (rendering these Filter... options unnecessary)?
+
+      my $filterNamer = sub { # this could be (and was) far more terse, but these comments might save future pain...
+         # https://perldoc.perl.org/IO::Compress::Zip#File-Naming-Options
+         # On entry to the sub the $_ variable will contain the name to be
+         # filtered.  If no filename is available $_ will contain an empty
+         # string.  The value of $_ when the sub returns will be used as the
+         # archive member name.
+         $_ = $tempFnmMap{$_} // $_;  # explicitly modify $_
+         s!$reFsNmAbs!!;              # implicitly modify $_  NB: syntax differs slightly from map BLOCK used to gen @mappedSrcFnms
+         # NB: next line does NOTHING, but doesn't fail either; apparently this closure/sub when called does not have access to $dl?
+         # $dl->( "  FilterName: $_" );
+         };
+      my $zipOk = zip \@srcfnms => $absZipfnm
+                     , Level => Z_NO_COMPRESSION
+                     , Minimal => 1
+                     , FilterName => $filterNamer
+                     ;
+      if( !$zipOk ) {
+         $dl->( "${p}zip done: \n" );
+         $dl->( $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ) ] ), "\n" );
+         $dl->( $qy->end_html );
+         die "zip failed: $ZipError\n";
+         }
+
+      # ok, $absZipfnm was created: send it to the client!
+      print $qy->header( -type=>'application/zip', -attachment=>$zipfnm, -content_length=>(stat $absZipfnm)[7] );
+      {
+      open my $ifh, "<", $absZipfnm or die "can't open $absZipfnm for reading: $!\n";
+      binmode $ifh;
+      binmode STDOUT;
+      my $bufsize = 4*1024*1024;
+      local $INPUT_RECORD_SEPARATOR = \$bufsize;
+      local $OUTPUT_AUTOFLUSH = 1;
+      print $_ while( <$ifh> );
+      }
+         # my $locn = "$weblink/$fn" =~ s{([\s])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '\s' only FTTB)
 
       last;
       }
-
-   # die unless $FsNmAbs dir tree size is < 1GB (or something more sophisticated)
-   # do the needful to request mod_zip do its thing...
-   #
-   # Other items
-   # handler_search_keys: when generating dir results, generate additional link
-   #   (icon?) "download tree-zip" containing link to this page with some param
-   #   that routes to handler_zipdownload.
-   #
-   # outside repo: modify nginx config to route
-
-   print "${p}done\n";
-   print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ) ] ), "\n";
-   print $qy->end_html;
    exit 0;
    }  # unimpl
 

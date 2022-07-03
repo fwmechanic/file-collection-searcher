@@ -9,11 +9,12 @@ personal-server-local directory trees.
 # Approach & Features
 
   * Search based only on filename content; a sidecar metadata database is not present.
-  * Provides only Read (R in CRUD) services against the collection.
-  * Uses nginx + [fcgiwrap]( https://www.nginx.com/resources/wiki/start/topics/examples/fcgiwrap/) to front the Perl-CGI script and serve all media artifacts.
+  * Provides only Read (R in CRUD) services against the collection.  Collection dir trees are readonly.
+  * Uses nginx + [fcgiwrap](https://www.nginx.com/resources/wiki/start/topics/examples/fcgiwrap/) ([github](https://github.com/gnosek/fcgiwrap)) to front the Perl-CGI script and serve all media artifacts.
   * Transforms user query parameter(s) into a Perl regex which is compared against each candidate filename in a (cached) list of filenames (output of `find` command) across multiple disjoint directory trees.
   * Uses `inotifywait` daemon output (file touching) to determine whether the cached list of filenames remains valid (else a find scan is performed to update the cache before searching).
   * Presents output in descending copyright-year order, sorted alphabetically within year, with different formats of the same title coalesced to save UI space.
+  * New in 22.07: on-demand zip-file creation & downloading of entire MP3 albums! Only core Perl modules used (requires no optional/nondefault nginx modules).
 
 # Missing Features
 
@@ -33,7 +34,6 @@ personal-server-local directory trees.
   * candidate offsite actions:
      * "Search-engine search"
      * "Amazon search"
-  * Use nginx mod_zip to zip e.g. music albums on demand.  Partially implemented.
   * API's for external `curl`+`jq` scripting
      * return metadata (size, SHA-sum) of all matches.
 
@@ -137,10 +137,6 @@ thing" (music album, audiobook, etc.):
 Other name conventions are coming into use for other types of media.  The names are of significance to this facility for the following reasons:
   * copyright year needs to be extracted for search-result presentation (sorting).
   * disambiguation of file format descriptor vs. file title, allowing different-format files of the same title to be compressed for search-result presentation.
-
-### Caveats
-
-  * Support for downloading "many files per thing" (e.g. a zip of an entire music album) does not yet exist.  It's on my to-do list to leverage the nginx mod_zip module to accomplish on the fly zipping at client download time.
 
 ## Helpful Sources
   * [SO::nginx-static-file-serving-confusion-with-root-alias]( https://stackoverflow.com/questions/10631933/nginx-static-file-serving-confusion-with-root-alias)
@@ -264,16 +260,3 @@ periodically.  I've not taken action due to
     * the cruder approach of completely deleting the database and refreshing it in its entirety from a full `find` output, just seems, well, crude.
        * getting more specific, the idea of using Perl's DBD::SQLite to write/read a character and word-indexed SQLite db file in lieu of the current text file (containing raw `find` output).
  * the current solution looks for not only isolated words but strings (within a word); indexing all word-substrings within a sequence of words strikes me as crazy.
-
-## Notes on compiling nginx from source
-
-This is necessary to add [mod_zip](https://github.com/evanmiller/mod_zip) to `nginx`; also mod_zip doc recommends using (adding) [headers-more-nginx-module](https://github.com/openresty/headers-more-nginx-module#readme) "[t]o wipe the X-Archive-Files header from the response sent to the client".
-
-* [[nginx.org] Building nginx from Sources](http://nginx.org/en/docs/configure.html) covers many (all?) options,
-* My main remaining puzzlement is how to ascertain the net prerequisites of the union of `nginx` and the modules I choose to compile into it?
-   * [Sample ubuntu `nginx` compile instructions](https://devopscraft.com/how-to-compile-nginx-from-source-on-ubuntu-20-04/) lists preprequisite apt packages in a scattered manner and w/o explanation as to how this package list was determined.  Perhaps "trial and error" is the standard/expected approach?
-* [[nginx.org] Nginx release source downloads](https://nginx.org/download/)
-* [[nginx.com] mod_zip page on nginx.com](https://www.nginx.com/resources/wiki/modules/zip/) seems to be a copy of the github README.
-* To list `configure` args of existing (i.e. distro-packaged) `nginx` binary:
-   * `2>&1 nginx -V | perl -ne '/^configure arguments: (.+)$/ && print $1' | xargs -n1 | sort`
-* [brief reddit thread on using mod_zip](https://www.reddit.com/r/nginx/comments/9jzqa6/trying_to_understand_mod_zip/)
