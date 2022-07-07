@@ -86,11 +86,11 @@ server {
     }
 
     location ~ ^/cgi {
-        root %repo_dir%/;
-        rewrite ^/cgi/(.*) /$1 break;
+        # map /cgi/scriptname -> %repo_dir%/scriptname
+        root %repo_dir%/;  # set $document_root for 'fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;' in /etc/nginx/fastcgi.conf
+        rewrite ^/cgi/(.*) /$1 break;  # rmv '/cgi/' prefix (rewrite directive has space-delimited params)
 
         fastcgi_pass unix:/var/run/fcgiwrap.socket;
-        fastcgi_param SCRIPT_FILENAME %repo_dir%/search-files;
         include fastcgi_params;
     }
 }
