@@ -31,8 +31,16 @@ start_modify_log() (
 pkill inotifywait
 
 pgrep -l inotifywait
-start_modify_log "$common_fsroot/ebooks"
-start_modify_log "$common_fsroot/MP3"
-start_modify_log "$common_fsroot/audiobooks"
-start_modify_log "$common_fsroot/Video"
+
+gen_fsroots() { perl -e '
+   use FindBin qw( $RealBin ); my $untainted_bin; BEGIN { ($untainted_bin) = $RealBin =~ /(.+)/; }
+   use lib "$untainted_bin";
+   use Site;
+   print $_->{fsroot}."\0" for @Site::treelocns;'
+   }
+
+while IFS= read -r -d $'\0' tree_fsroot; do
+   start_modify_log "$tree_fsroot"
+done < <(gen_fsroots)
+
 pgrep -l inotifywait
