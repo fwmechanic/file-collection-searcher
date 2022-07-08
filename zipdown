@@ -19,7 +19,7 @@ use FindBin qw( $RealBin );
 my $untainted_bin;  # Taint Mode gyrations courtesy of https://www.perlmonks.org/?node_id=11120715 (last answer)
 BEGIN { ($untainted_bin) = $RealBin =~ /(.+)/; }
 use lib "$untainted_bin";
-use Common;
+use Site;
 
 my ($tm_start,$et_srch,$et_find) = (time(), 0, 0);
 
@@ -46,7 +46,7 @@ sub handler_zipdownload { my ($qy) = @_;
          -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
          )
         );
-   for my $hr ( @Common::treelocns ) {  # linear search to find treelocn containing $weblink so we can xlat to fs locn
+   for my $hr ( @Site::treelocns ) {  # linear search to find treelocn containing $weblink so we can xlat to fs locn
       my ($fsroot,$webroot,$findtype) = @{$hr}{qw(fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $weblink =~ m=^\Q$webroot=;
       $dl->( $qy->h3("zipdownload $weblink"), "\n" );
@@ -58,7 +58,7 @@ sub handler_zipdownload { my ($qy) = @_;
       $dl->( " but it isn't a directory!" ) unless -d $fsNmAbs;
       $dl->( "$p\n" );
 
-      my $td = tempdir( DIR => Common::CACHEDIR, CLEANUP => 1 );
+      my $td = tempdir( DIR => Site::CACHEDIR, CLEANUP => 1 );
       $dl->( "tempdir=$td$p\n" );
 
       # copied from my repo=shell/m3u

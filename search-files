@@ -18,7 +18,7 @@ use FindBin qw( $RealBin );
 my $untainted_bin;  # Taint Mode gyrations courtesy of https://www.perlmonks.org/?node_id=11120715 (last answer)
 BEGIN { ($untainted_bin) = $RealBin =~ /(.+)/; }
 use lib "$untainted_bin";
-use Common;
+use Site;
 
 # see STDERR -> /var/log/nginx/error.log for errors executing this script (ubuntu-specific?)
 # testing cmdlines using http://perldoc.perl.org/CGI.html#DEBUGGING
@@ -119,13 +119,13 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
-   my $findoutfnm = Common::CACHEDIR."/$fsrt_tail";
+   my $findoutfnm = Site::CACHEDIR."/$fsrt_tail";
    {  # $semfh is used in case fcgiwrap does not single-thread CGI processes;
       # this is not tremendously efficient in case of collision, but not awful either
       # _could_ fail flock immediately (LOCK_NB) and try a different $fsroot to parallel-process find-checking (and worst-case: scanning)
       my $semfh;
       if( 1 ) {
-         my $semfnm = Common::CACHEDIR."/$fsrt_tail.sem";
+         my $semfnm = Site::CACHEDIR."/$fsrt_tail.sem";
          open $semfh, '>', $semfnm or die "abend: cannot open $semfnm for writing: $!\n";
          flock( $semfh, LOCK_EX )  or die "abend: flock $semfnm failed: $!\n";
          }
@@ -249,7 +249,7 @@ sub search_keys_find_matches { my ($qy) = @_;
    #    }
 
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
-   for my $hr ( @Common::treelocns ) {
+   for my $hr ( @Site::treelocns ) {
       my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $isa =~ m=[$isaset]=;
       my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn($qy,$isa,$fsroot,$webroot,$findtype,$pat);
@@ -269,14 +269,14 @@ sub handler_search_keys { my ($qy) = @_;
    print "$pat\n" if showRegex;
    # print $qy->Dump();
    print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
-   for my $hr ( @Common::treelocns ) {
+   for my $hr ( @Site::treelocns ) {
       my $ms = $hr->{matches};
       if( scalar keys %{$ms} ) {
          my $cat = $hr->{cat};
          print $qy->a({href=>"#$cat"},$cat),"\n";
          }
       }
-   for my $hr ( @Common::treelocns ) {
+   for my $hr ( @Site::treelocns ) {
       my $ms = $hr->{matches};
       if( scalar keys %{$ms} ) {
          my $anch = { id => $hr->{cat} };

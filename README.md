@@ -138,6 +138,12 @@ Other name conventions are coming into use for other types of media.  The names 
   * copyright year needs to be extracted for search-result presentation (sorting).
   * disambiguation of file format descriptor vs. file title, allowing different-format files of the same title to be compressed for search-result presentation.
 
+### site-specific config in this repo
+
+As this is a "one off" project (only one instance deployed worldwide), as of 22.07 I've moved all the site-specific Perl stuff into `Site.pm`:
+ * `@Site::treelocns` a list of structs (hashrefs) with each list element describing one subtree of the collection.
+ * [constant] `Site::CACHEDIR` where per-collection-subtree inotifywait output files and zipdown tempdirs are instantiated.
+
 ## Helpful Sources
   * [SO::nginx-static-file-serving-confusion-with-root-alias]( https://stackoverflow.com/questions/10631933/nginx-static-file-serving-confusion-with-root-alias)
   * [github::CGI-bash project]( https://github.com/ruudud/cgi)

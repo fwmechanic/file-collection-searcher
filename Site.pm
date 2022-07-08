@@ -1,4 +1,4 @@
-package Common;
+package Site;
 
 # no code; contains semantic mappings of web dirs to filesys dirs
 
