@@ -31,8 +31,6 @@ use Site;
 
 # mode controls:
 use constant showRegex => 0;
-use constant count_uniq_cands   => 0;  # has major performance impact
-use constant count_uniq_matches => 1;  # has no    performance impact
 
 $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in shebang)
 
@@ -144,9 +142,8 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          }
       close $semfh if $semfh;
    }
-   my ($cands, $matches) = (0, 0);
-   my (%unique_cands,%unique_matches);
-   my (%rv,%ft_f_keys,%extsOf);
+   my $cands = 0;
+   my (%unique_matches,%rv,%ft_f_keys,%extsOf);
    my $split_fnm_base_ext = ($findtype eq 'd')
       ? sub { ($_[0],''); }   # note that WE USE AN EXTENDED DEFINITION OF "ext" as defined HERE_EXT
       : sub { ($_[0] =~ m=(.+?)((?:[_.][Cc]ode|\.medtype|_cropped)?\.[^\.]+)$=); } ;  # <-- HERE_EXT
@@ -154,19 +151,13 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
    {
    open my $ifh, '<', $findoutfnm or die "abend: cannot open $findoutfnm for reading: $!\n";
    while ( my $fsNmRel = <$ifh> ) {  # one filename or dirname (relative to $fsroot) per line
+      ++$cands;
       chomp $fsNmRel;
       my ($fnm) = $fsNmRel =~ m=([^/]+)$=; # print "$fnm\n";
-      my $tgt = ".$fnm.";
-      my ($base,$ext);
-      if( count_uniq_cands ) {
-         ($base,$ext) = $split_fnm_base_ext->($fnm);
-         ++$unique_cands{$base};
-         }
-      ++$cands;
+      my $tgt = '.' . $fnm . '.';  # setup for match (next)
       if( $tgt =~ m,$pat, ) { # print "$tgt\n" ;  # MATCH!  slow path
-         ($base,$ext) = $split_fnm_base_ext->($fnm) unless $base;
-         ++$unique_matches{$base} if count_uniq_matches;
-         ++$matches;
+         my ($base,$ext) = $split_fnm_base_ext->($fnm);
+         ++$unique_matches{$base};
          my $yr = extract_yr( $tgt );
          my $fsNmAbs = "$fsroot/$fsNmRel" =~ s=/\./=/=r; # print "$fsNmAbs\n" ;
          my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
@@ -192,9 +183,9 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       push @{$rv{$yr}}, join(' ',@out);
       }
    $et_srch += time() - $t_srch_start;
-   return (\%rv,
-            scalar keys %unique_cands   || $cands  ,
-            scalar keys %unique_matches || $matches,
+   return ( \%rv
+          , $cands
+          , scalar keys %unique_matches,
           );
    }
 
