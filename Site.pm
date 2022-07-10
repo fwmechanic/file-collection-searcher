@@ -1,4 +1,5 @@
 package Site;
+use Strict;
 
 # no code; contains semantic mappings of web dirs to filesys dirs
 

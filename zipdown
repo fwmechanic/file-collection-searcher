@@ -64,12 +64,12 @@ sub handler_zipdownload { my ($qy) = @_;
       do {
          my @playableExts   = qw( mp3 mp4 mpg m4a m4b wmv flac f4v flv );
          my @playAssistExts = qw( srt vtt );
-         sub extRE {
+         my $extRE = sub {
             my $rv = '\.(?i)(?:' . join('|', @_) . ')$'; # $dl->( "\npat=$rv\n" );
             return qr($rv);
-            }
-         ( extRE( @playableExts, @playAssistExts )
-         , extRE( @playableExts )
+            };
+         ( $extRE->( @playableExts, @playAssistExts )
+         , $extRE->( @playableExts )
          )
          };
       my $rePathLeaf = qr([^/]+$);
@@ -179,7 +179,7 @@ sub handler_zipdownload { my ($qy) = @_;
       #
       # Benefits: #1, it works!  That aside: having the complete zip file in
       # hand prior to download allows us to supply a content_length response
-      # header so the http client can see a know-size download progressing.
+      # header so the http client can see a known-size download progressing.
 
       # A theoretical alternative approach would be to stream the zip file bytes
       # onto the wire as they're being generated.  Benefits: possibly shorter
