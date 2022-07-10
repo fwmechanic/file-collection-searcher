@@ -251,7 +251,7 @@ sub handler_search_keys { my ($qy) = @_;
          }
       }
    print $qy->h3( "Server response timing:" );
-   print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ), " Tfind: ".pr_et_us( $et_find ), " Tsrch: ".pr_et_us( $et_srch ) ] ), "\n";
+   print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ), " Tfind: ".pr_et_us( $et_find ), " Tsrch: ".pr_et_us( $et_srch ) ] ), "UTB= $untainted_bin", "\n";
    print $qy->end_html;
    exit 0;
    }
