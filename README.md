@@ -238,11 +238,11 @@ This brings performance back down to the 300mS range; not awesome, but massively
 | 22.01 | 113265  |  233 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
 | 22.06 | 121936  |  241 | TS140 i3-4130 16GB RAM | Ubuntu 20.04 |
 
-# Future performance-related directions
+# Future search-performance related directions
 
 Performance per above benchmark results is adequate and stable, but I still
 hope for better.  The lazy approach (which I'm currently taking) is to await
-the arrival of pending upgrades:
+the arrival of pending HW and Linux kernel upgrades:
 
  * Ubuntu 22.04.1 (2022/08/04)
  * a new server (PC hardware): my TS140 with i3-4130 is getting long in the
@@ -266,3 +266,18 @@ periodically.  I've not taken action due to
     * the cruder approach of completely deleting the database and refreshing it in its entirety from a full `find` output, just seems, well, crude.
        * getting more specific, the idea of using Perl's DBD::SQLite to write/read a character and word-indexed SQLite db file in lieu of the current text file (containing raw `find` output).
  * the current solution looks for not only isolated words but strings (within a word); indexing all word-substrings within a sequence of words strikes me as crazy.
+
+Another possibility is parallelizing the search activity with a natural
+division being at the treelocn level, especially when running on newer,
+higher core-count HW.  Simplistically:
+
+supervisor_CGI_process::argparse -> N * searchers -> supervisor_CGI_process::result_presentation
+
+Since AFAICT Perl offers little in the way of multithreading capability, I could
+imagine something as crude as supervisor_CGI_process::argparse writing a tiny
+Makefile and running child process `make -j` to run N searchers in parallel.
+Initially "searchers" would be comprised of the same search-files Perl code (core
+function `search_treelocn`), but today, `search_treelocn` returns a slightly
+complex data structure; most crudely this structure could be Storable::'d or
+Data::Dumper'd by the respective searcher process and imported by
+supervisor_CGI_process::result_presentation process.

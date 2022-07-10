@@ -4,12 +4,10 @@
 use strict;
 use warnings;
 use Time::HiRes qw( time );
-use Encode;
 use English;
-use Data::Dumper;
+use Encode;
 use File::Find;
 use File::Temp qw( tempdir );
-use Fcntl qw(:flock SEEK_END);
 use IO::Compress::Zip qw(zip $ZipError :constants);
 # ^^^-end core Perl modules, vvv-begin non-core modules:
 use CGI;  # from `apt-get install libcgi-pm-perl`

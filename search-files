@@ -4,12 +4,10 @@
 use strict;
 use warnings;
 use Time::HiRes qw( time );
-use Encode;
+# use Encode;
 use English;
 use Data::Dumper;
-use File::Find;
 use Fcntl qw(:flock SEEK_END);
-use IO::Compress::Zip qw(zip $ZipError :constants);
 # ^^^-end core Perl modules, vvv-begin non-core modules:
 use CGI;  # from `apt-get install libcgi-pm-perl`
 use CGI::Carp qw(fatalsToBrowser warningsToBrowser set_message);  # from `apt-get install libcgi-pm-perl`
@@ -35,14 +33,6 @@ use constant showRegex => 0;
 $ENV{PATH} = '/bin:/usr/bin';  # to allow running under 'taint mode' (-T in shebang)
 
 my ($tm_start,$et_srch,$et_find) = (time(), 0, 0);
-
-sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
-
-use constant maxCopyrightYr => do {
-   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime();
-   $year = $year+1900;  # std xlation
-   $year + 1;  # (c)Y+1 books appear late in year Y
-   };
 
 use constant q1 => "'";
 use constant q2 => '"';
@@ -99,6 +89,14 @@ sub gen_re_match_all_anyorder {
    return qr($rv);
    }
 
+#------- (here..search_treelocn] to be moved to separate script
+
+use constant maxCopyrightYr => do {
+   my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime();
+   $year = $year+1900;  # std xlation
+   $year + 1;  # (c)Y+1 books appear late in year Y
+   };
+
 sub extract_yr { my($tgt) = @_;
    my @yr4s = $tgt =~ m=${\bound_re}(\d{4})${\bound_re}=g; # normally, (c) year is given as yyyy
    my @more = $tgt =~ m=${\bound_re}(\d{4})\d{2}${\bound_re}=g;   push( @yr4s, @more     ); # but rarely I give yyyymm
@@ -113,17 +111,21 @@ sub extract_yr { my($tgt) = @_;
    $rv;
    }
 
-sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
+sub a_href { my ($href,$user) = @_; return '<a href="' . $href . '">' . $user . '</a>'; }
+
+sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
+
+sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
-   my $findoutfnm = Site::CACHEDIR."/$fsrt_tail";
+   my $findoutfnm = $cachedir."/$fsrt_tail";
    {  # $semfh is used in case fcgiwrap does not single-thread CGI processes;
       # this is not tremendously efficient in case of collision, but not awful either
       # _could_ fail flock immediately (LOCK_NB) and try a different $fsroot to parallel-process find-checking (and worst-case: scanning)
       my $semfh;
       if( 1 ) {
-         my $semfnm = Site::CACHEDIR."/$fsrt_tail.sem";
+         my $semfnm = $cachedir."/$fsrt_tail.sem";
          open $semfh, '>', $semfnm or die "abend: cannot open $semfnm for writing: $!\n";
          flock( $semfh, LOCK_EX )  or die "abend: flock $semfnm failed: $!\n";
          }
@@ -163,7 +165,7 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
          my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
          if( $findtype eq 'd' || ! $ext ) {
             my $reldir = $weblink =~ s=^$webroot/==r;
-            push @{$rv{$yr}}, $qy->a({href=>"$weblink"},$reldir) .' '. $qy->a({href=>"zipdown?zipdowndirnm=$weblink"},'zipdown!');
+            push @{$rv{$yr}}, a_href( $weblink, $reldir ) .' '. a_href( "zipdown?zipdowndirnm=$weblink", 'zipdown!' );
             }
          else {
             my $link_wo_ext = substr( $weblink, 0, - length $ext );
@@ -177,7 +179,7 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
       my @out = $link_wo_ext =~ m=([^/]+)$=;
       my $lwx = $link_wo_ext =~ s{([#])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '#' only FTTB)
       for my $ext ( sort { $b cmp $a } @{$extsOf{$link_wo_ext}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
-         push @out, $qy->a({href=>"$lwx$ext"},$ext),"\n";
+         push @out, a_href( "$lwx$ext", $ext ) . "\n";
          }
       my $yr = $ft_f_keys{$link_wo_ext};
       push @{$rv{$yr}}, join(' ',@out);
@@ -189,16 +191,7 @@ sub search_treelocn { my ($qy,$isa,$fsroot,$webroot,$findtype,$pat) = @_;
           );
    }
 
-my $qy = CGI->new;
-# dispatch
-sub rsp404 {
-   print $qy->header( -status => '404 Not Found', );
-   exit 0;
-   }
-if   ( exists $qy->Vars->{search_keys}  ) { handler_search_keys( $qy ); }
-else { rsp404(); }
-
-sub pr_et_us { return sprintf("%.6f", $_[0]); }
+handler_search_keys( CGI->new );
 
 sub search_keys_find_matches { my ($qy) = @_;
    my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
@@ -215,42 +208,21 @@ sub search_keys_find_matches { my ($qy) = @_;
    @search_keys = grep { not m{^(?:and|[Bb]y)$} } @search_keys;  # drop common paste noise terms
    my $norm_search_terms = join(' ',@search_keys);
    my $pat = gen_re_match_all_anyorder( '\w_', @search_keys );
-
-   # WIP to allow processes colliding on flock $semfh to try the set of sem files in random/shuffle order
-   # this would also require separating find-phase from search phase as the following should seek to complete all find-phases before searching
-   #
-   # my @tlixs;
-   # for my $ix (0 .. $#treelocns) {
-   #    my ($isa,$fsroot,$webroot,$findtype) = @{$treelocns[$ix]}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
-   #    next unless $isa =~ m=[$isaset]=;
-   #    push @tlixs, $ix;
-   #    }
-   # @tlixs = shuffle(@tlixs);  requires  -->  use List::Util 'shuffle';
-   # while( scalar @tlixs ) {
-   #    for my $ix (0 .. $#tlixs) {
-   #       for my $hr ( @tlixs ) {
-   #          my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
-   #          my $matches = search_treelocn($qy,$isa,$fsroot,$webroot,$findtype,$pat);
-   #          if( $matches ) {
-   #             $hr->{matches} = $matches;
-   #
-   #             }
-   #          }
-   #       }
-   #    }
-
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
    for my $hr ( @Site::treelocns ) {
       my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $isa =~ m=[$isaset]=;
-      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn($qy,$isa,$fsroot,$webroot,$findtype,$pat);
+      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn(Site::CACHEDIR,$fsroot,$webroot,$findtype,$pat);
       $cands   += $ccnt;
       $matches += $mcnt;
       }
    return ($norm_search_terms,$pat,$cands,$matches);
    }
 
+sub pr_et_us { return sprintf("%.6f", $_[0]); }
+
 sub handler_search_keys { my ($qy) = @_;
+   exists $qy->Vars->{search_keys} or die "missing 'search_keys' param\n?";
    my ($norm_search_terms,$pat,$cands,$matches) = search_keys_find_matches( $qy );
    print $qy->header;
    print $qy->start_html(
