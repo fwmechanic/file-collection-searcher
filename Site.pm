@@ -1,5 +1,6 @@
 package Site;
-use Strict;
+use strict;
+use warnings;
 
 # no code; contains semantic mappings of web dirs to filesys dirs
 
@@ -35,3 +36,5 @@ our @treelocns = (  # unfortunately necessary hardcoding of app filesys/webapp m
    { isa=>'a', ft=>'f', cat=>'Audiobooks' , webroot=>'/files/audiobooks'   , fsroot=>$common_fsroot.'/audiobooks'   },
    { isa=>'v', ft=>'d', cat=>'Videos'     , webroot=>'/files/Video'        , fsroot=>$common_fsroot.'/Video'        },
    );
+
+1;

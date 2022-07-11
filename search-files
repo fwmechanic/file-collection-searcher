@@ -108,12 +108,12 @@ sub extract_yr { my($tgt) = @_;
       $max = ($_<=maxCopyrightYr && $_>$max) ? $_ : $max foreach @yr4s;  # print $max,"\n";
       $rv = $max if $max > 0;
       }
-   $rv;
+   return $rv;
    }
 
-sub a_href { my ($href,$user) = @_; return '<a href="' . $href . '">' . $user . '</a>'; }
+sub a_href { my ($link,$disp) = @_; return '<a href="' . $link . '">' . $disp . '</a>'; }
 
-sub mtime { -f $_[0] ? (stat($_[0]))[9] : 0 ; }
+sub mtime { my ($fnm) = @_; return -f $fnm ? (stat($fnm))[9] : 0 ; }
 
 sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
@@ -219,7 +219,7 @@ sub search_keys_find_matches { my ($qy) = @_;
    return ($norm_search_terms,$pat,$cands,$matches);
    }
 
-sub pr_et_us { return sprintf("%.6f", $_[0]); }
+sub pr_et_us { my ($et) = @_; return sprintf("%.6f", $et); }
 
 sub handler_search_keys { my ($qy) = @_;
    exists $qy->Vars->{search_keys} or die "missing 'search_keys' param\n?";
