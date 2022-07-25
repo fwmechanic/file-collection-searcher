@@ -48,12 +48,10 @@ sub handler_zipdownload { my ($qy) = @_;
       my ($fsroot,$webroot,$findtype) = @{$hr}{qw(fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $weblink =~ m=^\Q$webroot=;
       $dl->( $qy->h3("zipdownload $weblink"), "\n" );
-      $dl->( "hit on webroot=$webroot" );
-      $dl->( " but findtype=$findtype != 'd'" ) unless $findtype eq 'd';
+      $dl->( "hit on webroot=$webroot" );  $findtype eq 'd' or die " but findtype=$findtype != 'd'";
       $dl->( "$p\n" );
       my $fsNmAbs = $weblink =~ s=^\Q$webroot=$fsroot=r;
-      $dl->( "fsNmAbs=$fsNmAbs" );
-      $dl->( " but it isn't a directory!" ) unless -d $fsNmAbs;
+      $dl->( "fsNmAbs=$fsNmAbs" );  -d $fsNmAbs or die " but it isn't a directory!";
       $dl->( "$p\n" );
 
       my $td = tempdir( DIR => Site::CACHEDIR, CLEANUP => 1 );

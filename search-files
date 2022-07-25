@@ -115,6 +115,10 @@ sub a_href { my ($link,$disp) = @_; return '<a href="' . $link . '">' . $disp . 
 
 sub mtime { my ($fnm) = @_; return -f $fnm ? (stat($fnm))[9] : 0 ; }
 
+sub url_encode { my ($url) = @_;
+   return $url =~ s{([#&="+%[:cntrl:]\s])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (see gsub_URL_escape in k.luaedit)
+   }
+
 sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
@@ -165,7 +169,7 @@ sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
          my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
          if( $findtype eq 'd' || ! $ext ) {
             my $reldir = $weblink =~ s=^$webroot/==r;
-            push @{$rv{$yr}}, a_href( $weblink, $reldir ) .' '. a_href( "zipdown?zipdowndirnm=$weblink", 'zipdown!' );
+            push @{$rv{$yr}}, a_href( $weblink, $reldir ) .' '. a_href( "zipdown?zipdowndirnm=".url_encode( $weblink ), 'zipdown!' );
             }
          else {
             my $link_wo_ext = substr( $weblink, 0, - length $ext );
@@ -177,7 +181,7 @@ sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
    } # closes $ifh
    for my $link_wo_ext (sort keys %ft_f_keys) {  # fold extsOf into rv
       my @out = $link_wo_ext =~ m=([^/]+)$=;
-      my $lwx = $link_wo_ext =~ s{([#])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (for '#' only FTTB)
+      my $lwx = url_encode( $link_wo_ext );
       for my $ext ( sort { $b cmp $a } @{$extsOf{$link_wo_ext}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
          push @out, a_href( "$lwx$ext", $ext ) . "\n";
          }
