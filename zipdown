@@ -76,8 +76,8 @@ sub handler_zipdownload { my ($qy) = @_;
       my (@srcfnms,@m3ufnms,%eachdir);
       find(
          { wanted => sub {
-            return unless -f $_;             # $dl->( "F0=$_\n" );                 # sanspath i.e. leaf name: might be a dir; ignore these
             ++$eachdir{$File::Find::dir};    # $dl->( "F1=$File::Find::name\n" );  # == "$File::Find::dir/$_": NB !!! WE ARE CD'D INTO $File::Find::dir !!!
+            return unless -f $_;             # $dl->( "F0=$_\n" );                 # sanspath i.e. leaf name: might be a dir; ignore these
             push @srcfnms, $File::Find::name if $_ =~ $reToZip;
             push @m3ufnms, $File::Find::name if $_ =~ $reM3u;
             },
