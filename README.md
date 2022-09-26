@@ -15,6 +15,8 @@ personal-server-local directory trees.
   * Uses `inotifywait` daemon output (file touching) to determine whether the cached list of filenames remains valid (else a find scan is performed to update the cache before searching).
   * Presents output in descending copyright-year order, sorted alphabetically within year, with different formats of the same title coalesced to save UI space.
   * New in 22.07: on-demand zip-file creation & downloading of entire MP3 albums! Only core Perl modules used (requires no optional/nondefault nginx modules).
+  * `bookmarklet.js` provides near-effortless way to search the collection using the current browser text selection as search key(s).
+     * [Making Bookmarklets](https://gist.github.com/caseywatts/c0cec1f89ccdb8b469b1) [SO:bookmarklet-to-go-to-url-based-on-selected-text](https://stackoverflow.com/questions/26261323/bookmarklet-to-go-to-url-based-on-selected-text)
 
 # Missing Features
 
