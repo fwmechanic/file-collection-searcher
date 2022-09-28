@@ -3,12 +3,14 @@
 
 use strict;
 use warnings;
+# use utf8;
 use Time::HiRes qw( time );
-# use Encode;
+use Encode qw(decode_utf8);
 use English;
 use Data::Dumper;
 use Fcntl qw(:flock SEEK_END);
 # ^^^-end core Perl modules, vvv-begin non-core modules:
+# use CGI qw(-utf8);  # from `apt-get install libcgi-pm-perl`
 use CGI;  # from `apt-get install libcgi-pm-perl`
 use CGI::Carp qw(fatalsToBrowser warningsToBrowser set_message);  # from `apt-get install libcgi-pm-perl`
 
@@ -199,15 +201,17 @@ handler_search_keys( CGI->new );
 
 sub search_keys_find_matches { my ($qy) = @_;
    my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
-   my $skeys = $qy->Vars->{search_keys};
+   my $skeys = decode_utf8( $qy->Vars->{search_keys} );
       # print(sprintf("%v04X", $skeys), "\n");
       # {
       # local $Data::Dumper::Useqq = 1;
       # print( decode_utf8(Dumper($skeys)) );
       # print( decode_utf8(encode_utf8($skeys)) );
       # }
+      $skeys =~ s=(?:[Aa]rtist:|[Aa]lbum:)= =g; # common field tags become word separators
+      $skeys =~ s|[/\\:]| |g; # syntax-prohibited chars become word separators
       $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that browser can inject when user hits browser-'back'.
-      $skeys =~ s=${\q1}==g; # mimic qf file rename behavior
+      $skeys =~ s=[\x{2018}\x{2019}${\q1}]==g; # mimic qf file rename behavior: single quote chars collapse
    my @search_keys = split( qr{[-\s,.:${\q2}]+}, $skeys ); # preserve: [+#]
    @search_keys = grep { not m{^(?:and|[Bb]y)$} } @search_keys;  # drop common paste noise terms
    my $norm_search_terms = join(' ',@search_keys);
@@ -228,7 +232,7 @@ sub pr_et_us { my ($et) = @_; return sprintf("%.6f", $et); }
 sub handler_search_keys { my ($qy) = @_;
    exists $qy->Vars->{search_keys} or die "missing 'search_keys' param\n?";
    my ($norm_search_terms,$pat,$cands,$matches) = search_keys_find_matches( $qy );
-   print $qy->header;
+   print $qy->header("text/html;charset=UTF-8");
    print $qy->start_html(
          -title=>$norm_search_terms,
          -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
