@@ -202,20 +202,18 @@ handler_search_keys( CGI->new );
 sub search_keys_find_matches { my ($qy) = @_;
    my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
    my $skeys = decode_utf8( $qy->Vars->{search_keys} );
-      # print(sprintf("%v04X", $skeys), "\n");
-      # {
-      # local $Data::Dumper::Useqq = 1;
-      # print( decode_utf8(Dumper($skeys)) );
-      # print( decode_utf8(encode_utf8($skeys)) );
-      # }
-      $skeys =~ s=(?:[Aa]rtist:|[Aa]lbum:)= =g; # common field tags become word separators
-      $skeys =~ s|[/\\:]| |g; # syntax-prohibited chars become word separators
-      $skeys =~ s|&#9830;| |g; # remove nasty black-diamond-suit char that browser can inject when user hits browser-'back'.
-      $skeys =~ s=[\x{2018}\x{2019}${\q1}]==g; # mimic qf file rename behavior: single quote chars collapse
-   my @search_keys = split( qr{[-\x{2013}\s,.${\q2}]+}, $skeys ); # preserve: [+#]
-   @search_keys = grep { not m{^(?:and|[Bb]y)$} } @search_keys;  # drop common paste noise terms
-   my $norm_search_terms = join(' ',@search_keys);
-   my $pat = gen_re_match_all_anyorder( '\w_', @search_keys );
+   # print(sprintf("%v04X", $skeys), "\n");
+   # {
+   # local $Data::Dumper::Useqq = 1;
+   # print( decode_utf8(Dumper($skeys)) );
+   # print( decode_utf8(encode_utf8($skeys)) );
+   # }
+   $skeys =~ s{\b(?:artist|album|and|by|narr|narrated|narrator)\b}{ }gi; # common common paste-noise-words become word separators
+   $skeys =~ s{(\a)[\x{2018}\x{2019}${\q1}](\a)=$1$2}{}g;   # squash contractions
+   $skeys =~ s{[-\x{2013}\x{2666},.${\q1}${\q2}/\\:]+}{ }g; # most punctuation'ish chars become word separators
+                                                            # 2666=nasty black-diamond-suit char that browser can inject when user hits browser-'back'
+   # $skeys =~ s{\s+}{ }g;  # normalize space for retval/display
+   my $pat = gen_re_match_all_anyorder( '\w_', split( ' ', $skeys ) );
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
    for my $hr ( @Site::treelocns ) {
       my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
@@ -224,7 +222,7 @@ sub search_keys_find_matches { my ($qy) = @_;
       $cands   += $ccnt;
       $matches += $mcnt;
       }
-   return ($norm_search_terms,$pat,$cands,$matches);
+   return ($skeys =~ s{\s+}{ }gr,$pat,$cands,$matches);
    }
 
 sub pr_et_us { my ($et) = @_; return sprintf("%.6f", $et); }
