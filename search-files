@@ -208,14 +208,14 @@ sub search_keys_find_matches { my ($qy) = @_;
    # print( decode_utf8(Dumper($skeys)) );
    # print( decode_utf8(encode_utf8($skeys)) );
    # }
+   my $q1ish = "\x{2018}\x{2019}${\q1}";
    $skeys =~ s{\b(?:artist|album|and|by|narr|narrated|narrator)\b}{ }gi; # common common paste-noise-words become word separators
    $skeys =~ s{U\.S\.S\.R\.}{USSR}g;   # got to be
    $skeys =~ s{U\.S\.A\.}{USA}g;       #   a better
    $skeys =~ s{U\.S\.}{US}g;           #     way!
-   $skeys =~ s{(\a)[\x{2018}\x{2019}${\q1}](\a)=$1$2}{}g;   # squash contractions
-   $skeys =~ s{[-\x{2013}\x{2666},.${\q1}${\q2}/\\:]+}{ }g; # most punctuation'ish chars become word separators
+   $skeys =~ s{(\a)[$q1ish](\a)=$1$2}{}g;   # squash contractions
+   $skeys =~ s{[-\x{2013}\x{2666}$q1ish${\q2}/\\&:;,.]+}{ }g; # most punctuation'ish chars become word separators
                                                             # 2666=nasty black-diamond-suit char that browser can inject when user hits browser-'back'
-   # $skeys =~ s{\s+}{ }g;  # normalize space for retval/display
    my $pat = gen_re_match_all_anyorder( '\w_', split( ' ', $skeys ) );
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
    for my $hr ( @Site::treelocns ) {
