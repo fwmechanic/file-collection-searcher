@@ -142,7 +142,7 @@ sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
          }
       else {
          my $ft = $findtype; $ft .= ',l' if $ft =~ m|f|;
-         my $findcmd = "cd '$fsroot' && find . -type '$ft' > '$findoutfnm'";
+         my $findcmd = "cd '$fsroot' && find . -type '$ft' -not -path '*/.*' > '$findoutfnm'";
          # print STDERR "running '$findcmd'\n";
          my $t_find_start = time();
          system( $findcmd );
