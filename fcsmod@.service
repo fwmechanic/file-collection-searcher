@@ -1,0 +1,11 @@
+[Unit]
+Description = Systemd template unit file for family of inotifywait services used by file-collection-searcher
+
+[Service]
+Type = simple
+# %i parameter is dir (path) to recursively monitor
+ExecStart = inotifywait --recursive --monitor --event close_write --event moved_to --exclude "%i/.modify.log" "%i" --outfile "%i/.modify.log"
+StandardOutput = journal
+
+[Install]
+WantedBy = nginx.service
