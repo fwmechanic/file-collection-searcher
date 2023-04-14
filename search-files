@@ -214,8 +214,8 @@ sub search_keys_find_matches { my ($qy) = @_;
    $skeys =~ s{U\.S\.A\.}{USA}g;       #   a better
    $skeys =~ s{U\.S\.}{US}g;           #     way!
    $skeys =~ s{(\a)[$q1ish](\a)=$1$2}{}g;   # squash contractions
-   $skeys =~ s{[-\x{2013}\x{2666}$q1ish${\q2}/\\&:;,.]+}{ }g; # most punctuation'ish chars become word separators
-                                                            # 2666=nasty black-diamond-suit char that browser can inject when user hits browser-'back'
+   $skeys =~ s{[-\x{2013}\x{2666}$q1ish${\q2}/\\&:;,.()[\]]+}{ }g; # most punctuation'ish chars become word separators
+                          # 2666=nasty black-diamond-suit char that browser can inject when user hits browser-'back'
    my $pat = gen_re_match_all_anyorder( '\w_', split( ' ', $skeys ) );
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
    for my $hr ( @Site::treelocns ) {

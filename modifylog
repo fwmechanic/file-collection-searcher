@@ -2,8 +2,6 @@
 
 die() { printf %s "${@+$@$'\n'}" 1>&2 ; exit 1 ; }
 
-common_fsroot='/var/www-filesearcher-data'
-
 start_modify_log() (
    [[ "$1" ]] || die "missing (dirnm) parameter"
    [[ -d "$1" ]] || die "$1 is not a dir"
