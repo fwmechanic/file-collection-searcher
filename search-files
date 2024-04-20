@@ -78,17 +78,19 @@ sub gen_re_match_all_anyorder {
    # terms to be searched for first.  The naive idea being that longer strings
    # are less likey to be found than short strings.
    #
-   my (@strs,@words);
+   my (@strs,@words,$longest_term);
    for my $rawterm (@_) {  # construct regex matching lines containing, in any order, ALL of @_
       $rawterm =~ s|([CF])#|$1SHARP|;
       $rawterm =~ s|([cf])#|$1sharp|;
+      $longest_term = $rawterm if length $rawterm > length $longest_term;
       my $term = quotemeta( $rawterm );  #  match term
       push @strs,  "(*positive_lookahead:.*$term)"; # https://stackoverflow.com/a/4389683 https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       push @words, "(*positive_lookahead:.*$b$term$b)" if ($term =~ m=[A-Z]=) && ($term !~ m=[a-z]=); # all term alphas are caps (i.e. at least one uppercase-alpha and no lowercase-alphas)?: match word as defined by $b + $w
       }
    @strs = sort { length $b <=> length $a } @strs;  # try to find longest strings first
    my $rv = '^(?i)' . join('', @strs) . join('', @words) . '.*$'; # print "\npat=$rv\n";
-   return qr($rv);
+   # print "\nlongest_term=$longest_term\n";
+   return (qr($rv),lc $longest_term);
    }
 
 #------- (here..search_treelocn] to be moved to separate script
@@ -121,7 +123,7 @@ sub url_encode { my ($url) = @_;
    return $url =~ s{([#&="+%[:cntrl:]\s])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (see gsub_URL_escape in k.luaedit)
    }
 
-sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
+sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat,$longest_term_lc) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
@@ -162,21 +164,23 @@ sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
       ++$cands;
       chomp $fsNmRel;
       my ($fnm) = $fsNmRel =~ m=([^/]+)$=; # print "$fnm\n";
-      my $tgt = '.' . $fnm . '.';  # setup for match (next)
-      if( $tgt =~ m,$pat, ) { # print "$tgt\n" ;  # MATCH!  slow path
-         my ($base,$ext) = $split_fnm_base_ext->($fnm);
-         ++$unique_matches{$base};
-         my $yr = extract_yr( $tgt );
-         my $fsNmAbs = "$fsroot/$fsNmRel" =~ s=/\./=/=r; # print "$fsNmAbs\n" ;
-         my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
-         if( $findtype eq 'd' || ! $ext ) {
-            my $reldir = $weblink =~ s=^$webroot/==r;
-            push @{$rv{$yr}}, a_href( $weblink, $reldir ) .' '. a_href( "zipdown?zipdowndirnm=".url_encode( $weblink ), 'zipdown!' );
-            }
-         else {
-            my $link_wo_ext = substr( $weblink, 0, - length $ext );
-            $ft_f_keys{$link_wo_ext} = $yr;
-            push @{$extsOf{$link_wo_ext}}, $ext;
+      if( index(lc $fnm,$longest_term_lc) != -1 ) {  # might have a match
+         my $tgt = '.' . $fnm . '.';  # setup for match (next)
+         if($tgt =~ m,$pat,) { # print "$tgt\n" ;  # MATCH!  slow path
+            my ($base,$ext) = $split_fnm_base_ext->($fnm);
+            ++$unique_matches{$base};
+            my $yr = extract_yr( $tgt );
+            my $fsNmAbs = "$fsroot/$fsNmRel" =~ s=/\./=/=r; # print "$fsNmAbs\n" ;
+            my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
+            if( $findtype eq 'd' || ! $ext ) {
+               my $reldir = $weblink =~ s=^$webroot/==r;
+               push @{$rv{$yr}}, a_href( $weblink, $reldir ) .' '. a_href( "zipdown?zipdowndirnm=".url_encode( $weblink ), 'zipdown!' );
+               }
+            else {
+               my $link_wo_ext = substr( $weblink, 0, - length $ext );
+               $ft_f_keys{$link_wo_ext} = $yr;
+               push @{$extsOf{$link_wo_ext}}, $ext;
+               }
             }
          }
       }
@@ -219,12 +223,12 @@ sub search_keys_find_matches { my ($qy) = @_;
    $skeys =~ s{(\a)[$q1ish](\a)=$1$2}{}g;   # squash contractions
    $skeys =~ s{[-\x{2013}\x{2666}$q1ish${\q2}/\\&:;,.()[\]]+}{ }g; # most punctuation'ish chars become word separators
                           # 2666=nasty black-diamond-suit char that browser can inject when user hits browser-'back'
-   my $pat = gen_re_match_all_anyorder( '\w_', split( ' ', $skeys ) );
+   my ($pat,$longest_term_lc) = gen_re_match_all_anyorder( '\w_', split( ' ', $skeys ) );
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
    for my $hr ( @Site::treelocns ) {
       my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $isa =~ m=[$isaset]=;
-      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn(Site::CACHEDIR,$fsroot,$webroot,$findtype,$pat);
+      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn(Site::CACHEDIR,$fsroot,$webroot,$findtype,$pat,$longest_term_lc);
       $cands   += $ccnt;
       $matches += $mcnt;
       }
