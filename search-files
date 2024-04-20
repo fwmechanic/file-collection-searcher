@@ -3,6 +3,7 @@
 
 use strict;
 use warnings;
+use threads;
 # use utf8;
 use Time::HiRes qw( time );
 use Encode qw(decode_utf8 encode_utf8);
@@ -121,7 +122,7 @@ sub url_encode { my ($url) = @_;
    return $url =~ s{([#&="+%[:cntrl:]\s])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (see gsub_URL_escape in k.luaedit)
    }
 
-sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
+sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat,$ix) = @_;
    # print STDERR "fsroot=$fsroot\n";
    my ($fsrt_tail) = $fsroot =~ m|([^/]+)$|;
    # print STDERR "fsrt_tail=$fsrt_tail\n";
@@ -193,7 +194,8 @@ sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat) = @_;
    $et_srch += time() - $t_srch_start;
    return ( \%rv
           , $cands
-          , scalar keys %unique_matches,
+          , scalar keys %unique_matches
+          , $ix
           );
    }
 
@@ -221,13 +223,26 @@ sub search_keys_find_matches { my ($qy) = @_;
                           # 2666=nasty black-diamond-suit char that browser can inject when user hits browser-'back'
    my $pat = gen_re_match_all_anyorder( '\w_', split( ' ', $skeys ) );
    my ($cands,$matches) = (0, 0);  # counters accumulated across all calls to search_treelocn
-   for my $hr ( @Site::treelocns ) {
-      my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
+   my $thds = 0;
+   for my $ix ( 0 .. $#Site::treelocns ) {
+      my $hr = $Site::treelocns[$ix];
+      my ($isa,$fsroot,$webroot,$findtype) = @{$hr}{qw(isa   fsroot webroot ft)}; # print "\nfsroot=$fsroot\n";
       next unless $isa =~ m=[$isaset]=;
-      my ($ccnt, $mcnt); ($hr->{matches}, $ccnt, $mcnt) = search_treelocn(Site::CACHEDIR,$fsroot,$webroot,$findtype,$pat);
-      $cands   += $ccnt;
-      $matches += $mcnt;
+      my ($thr) = threads->create( \&search_treelocn, Site::CACHEDIR,$fsroot,$webroot,$findtype,$pat,$ix );
+      ++$thds;
       }
+   # join results in random order:
+   while( $thds > 0 ) {
+      for my $thr ( threads->list(threads::joinable) ) {
+         my ($mx, $ccnt, $mcnt, $ix) = $thr->join();  # non-blocking
+         my $hr = $Site::treelocns[$ix];
+         $hr->{matches} = $mx;            # print "\nJOIN[$ix] mx=".ref($mx)."DDD=".Dumper($mx)."\n<p>";
+         $cands        += $ccnt;
+         $matches      += $mcnt;
+         --$thds;
+         }
+      }
+
    return ($skeys =~ s{\s+}{ }gr,$pat,$cands,$matches);
    }
 
