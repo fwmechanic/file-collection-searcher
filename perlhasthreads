@@ -1,0 +1,5 @@
+#!/usr/bin/perl
+
+# https://perldoc.perl.org/perlthrtut#What-Is-A-Thread-Anyway?
+use Config;
+$Config{useithreads} or die('Recompile Perl with threads to run this program.');
