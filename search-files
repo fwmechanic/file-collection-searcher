@@ -5,7 +5,7 @@ use strict;
 use warnings;
 # use utf8;
 use Time::HiRes qw( time );
-use Encode qw(decode_utf8);
+use Encode qw(decode_utf8 encode_utf8);
 use English;
 use Data::Dumper;
 use Fcntl qw(:flock SEEK_END);
@@ -80,8 +80,8 @@ sub gen_re_match_all_anyorder {
    #
    my (@strs,@words);
    for my $rawterm (@_) {  # construct regex matching lines containing, in any order, ALL of @_
-      $rawterm =~ s|([CF])#|\1SHARP|;
-      $rawterm =~ s|([cf])#|\1sharp|;
+      $rawterm =~ s|([CF])#|$1SHARP|;
+      $rawterm =~ s|([cf])#|$1sharp|;
       my $term = quotemeta( $rawterm );  #  match term
       push @strs,  "(*positive_lookahead:.*$term)"; # https://stackoverflow.com/a/4389683 https://stackoverflow.com/questions/4389644/regex-to-match-string-containing-two-names-in-any-order
       push @words, "(*positive_lookahead:.*$b$term$b)" if ($term =~ m=[A-Z]=) && ($term !~ m=[a-z]=); # all term alphas are caps (i.e. at least one uppercase-alpha and no lowercase-alphas)?: match word as defined by $b + $w
@@ -201,13 +201,16 @@ handler_search_keys( CGI->new );
 
 sub search_keys_find_matches { my ($qy) = @_;
    my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
+   print( $qy->Vars->{search_keys}, ' len=', length $qy->Vars->{search_keys}, " -> ");
+   print(sprintf("%v04X", $qy->Vars->{search_keys}), "<p>");
    my $skeys = decode_utf8( $qy->Vars->{search_keys} );
-   # print(sprintf("%v04X", $skeys), "\n");
-   # {
-   # local $Data::Dumper::Useqq = 1;
-   # print( decode_utf8(Dumper($skeys)) );
+   print( $skeys, ' len=', length $skeys, " -> ");
+   print(sprintf("%v04X", $skeys), "<p>");
+   {
+   local $Data::Dumper::Useqq = 1;
+   print( decode_utf8(Dumper($skeys)) );
    # print( decode_utf8(encode_utf8($skeys)) );
-   # }
+   }
    my $q1ish = "\x{2018}\x{2019}${\q1}";
    $skeys =~ s{\b(?:artist|album|and|by|narr|narrated|narrator)\b}{ }gi; # common common paste-noise-words become word separators
    $skeys =~ s{U\.S\.S\.R\.}{USSR}g;   # got to be
@@ -232,8 +235,8 @@ sub pr_et_us { my ($et) = @_; return sprintf("%.6f", $et); }
 
 sub handler_search_keys { my ($qy) = @_;
    exists $qy->Vars->{search_keys} or die "missing 'search_keys' param\n?";
-   my ($norm_search_terms,$pat,$cands,$matches) = search_keys_find_matches( $qy );
    print $qy->header("text/html;charset=UTF-8");
+   my ($norm_search_terms,$pat,$cands,$matches) = search_keys_find_matches( $qy );
    print $qy->start_html(
          -title=>$norm_search_terms,
          -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
