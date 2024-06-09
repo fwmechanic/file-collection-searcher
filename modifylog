@@ -11,7 +11,7 @@ start_modify_log() (
    namei -l "$logfnm"
 
    # https://stackoverflow.com/a/49183740 orig: ( cd /; umask 0; setsid your_script.sh </dev/null &>/dev/null & ) &
-   ( cd /; umask 0; setsid inotifywait --recursive --monitor --event close_write --event moved_to --exclude "$logfnm" "$1" --outfile "$logfnm" </dev/null &>/dev/null & ) &
+   ( cd /; umask 0; setsid inotifywait --recursive --monitor -e close_write -e move -e delete --exclude "$logfnm" "$1" --outfile "$logfnm" </dev/null &>/dev/null & ) &
    writerpid="$([[ -f "$logfnm" ]] && lsof -t "$logfnm")" ; echo "$logfnm writerpid=$writerpid"
    sleep 3
    # note that if the next line shows the writerpid to have disappeared, its likely that inotifywait died:
