@@ -163,25 +163,27 @@ sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat,$longest_ter
    while ( my $fsNmRel = <$ifh> ) {  # one filename or dirname (relative to $fsroot) per line
       ++$cands;
       # fast path: prefer index and rindex to regexes, defer chomp to slow path
-      my $fnm = substr( $fsNmRel, 1+rindex( $fsNmRel, '/' ) );  # print "$fnm\n";
-      if( index(lc $fnm,$longest_term_lc) != -1 ) {  # might have a match
-         chomp $fnm;  # deferred
-         my $tgt = '.' . $fnm . '.';  # setup for match (next)
-         if($tgt =~ m,$pat,) { # print "$tgt\n" ;  # MATCH!  slow path
-            chomp $fsNmRel;  # deferred to slow path
-            my ($base,$ext) = $split_fnm_base_ext->($fnm);
-            ++$unique_matches{$base};
-            my $yr = extract_yr( $tgt );
-            my $fsNmAbs = "$fsroot/$fsNmRel" =~ s=/\./=/=r; # print "$fsNmAbs\n" ;
-            my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
-            if( $findtype eq 'd' || ! $ext ) {
-               my $reldir = $weblink =~ s=^$webroot/==r;
-               push @{$rv{$yr}}, a_href( $weblink, $reldir ) .' '. a_href( "zipdown?zipdowndirnm=".url_encode( $weblink ), 'zipdown!' );
-               }
-            else {
-               my $link_wo_ext = substr( $weblink, 0, - length $ext );
-               $ft_f_keys{$link_wo_ext} = $yr;
-               push @{$extsOf{$link_wo_ext}}, $ext;
+      if( index(lc $fsNmRel,$longest_term_lc) != -1 ) {  # partial match here could be a false hit on path
+         my $fnm = substr( $fsNmRel, 1+rindex( $fsNmRel, '/' ) );  # print "$fnm\n";
+         if( index(lc $fnm,$longest_term_lc) != -1 ) {  # partial match
+            chomp $fnm;  # deferred
+            my $tgt = '.' . $fnm . '.';  # setup for match (next)
+            if($tgt =~ m,$pat,) { # print "$tgt\n" ;  # FULL MATCH!  slow path
+               chomp $fsNmRel;  # deferred to slow path
+               my ($base,$ext) = $split_fnm_base_ext->($fnm);
+               ++$unique_matches{$base};
+               my $yr = extract_yr( $tgt );
+               my $fsNmAbs = "$fsroot/$fsNmRel" =~ s=/\./=/=r; # print "$fsNmAbs\n" ;
+               my $weblink = $fsNmAbs =~ s=^$fsroot=$webroot=r; # print "weblink=$weblink\n";
+               if( $findtype eq 'd' || ! $ext ) {
+                  my $reldir = $weblink =~ s=^$webroot/==r;
+                  push @{$rv{$yr}}, a_href( $weblink, $reldir ) .' '. a_href( "zipdown?zipdowndirnm=".url_encode( $weblink ), 'zipdown!' );
+                  }
+               else {
+                  my $link_wo_ext = substr( $weblink, 0, - length $ext );
+                  $ft_f_keys{$link_wo_ext} = $yr;
+                  push @{$extsOf{$link_wo_ext}}, $ext;
+                  }
                }
             }
          }
