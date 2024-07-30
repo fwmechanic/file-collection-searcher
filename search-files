@@ -78,7 +78,8 @@ sub gen_re_match_all_anyorder {
    # terms to be searched for first.  The naive idea being that longer strings
    # are less likey to be found than short strings.
    #
-   my (@strs,@words,$longest_term);
+   my (@strs,@words);
+   my $longest_term = '';
    for my $rawterm (@_) {  # construct regex matching lines containing, in any order, ALL of @_
       $rawterm =~ s|([CF])#|$1SHARP|;
       $rawterm =~ s|([cf])#|$1sharp|;
@@ -224,7 +225,7 @@ sub search_keys_find_matches { my ($qy) = @_;
    $skeys =~ s{U\.S\.S\.R\.}{USSR}g;   # got to be
    $skeys =~ s{U\.S\.A\.}{USA}g;       #   a better
    $skeys =~ s{U\.S\.}{US}g;           #     way!
-   $skeys =~ s{(\a)[$q1ish](\a)=$1$2}{}g;   # squash contractions
+   $skeys =~ s{([[:alpha:]])[$q1ish]([[:alpha:]])}{$1$2}g;   # squash contractions
    $skeys =~ s{[-\x{2013}\x{2666}$q1ish${\q2}/\\&:;,.()[\]]+}{ }g; # most punctuation'ish chars become word separators
                           # 2666=nasty black-diamond-suit char that browser can inject when user hits browser-'back'
    my ($pat,$longest_term_lc) = gen_re_match_all_anyorder( '\w_', split( ' ', $skeys ) );
