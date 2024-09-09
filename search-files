@@ -116,12 +116,14 @@ sub extract_yr { my($tgt) = @_;
    return $rv;
    }
 
-sub a_href { my ($link,$disp) = @_; return '<a href="' . $link . '">' . $disp . '</a>'; }
-
 sub mtime { my ($fnm) = @_; return -f $fnm ? (stat($fnm))[9] : 0 ; }
 
 sub url_encode { my ($url) = @_;
    return $url =~ s{([#&="+%[:cntrl:]\s])}{sprintf("%%%02X",ord($1))}egr;  # poor man's urlencode (see gsub_URL_escape in k.luaedit)
+   }
+
+sub a_href { my ($url, $text) = @_;
+   return qq{<a href="$url" target="_blank">$text</a>};
    }
 
 sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat,$longest_term_lc) = @_;
@@ -192,34 +194,31 @@ sub search_treelocn { my ($cachedir,$fsroot,$webroot,$findtype,$pat,$longest_ter
    } # closes $ifh
    for my $link_wo_ext (sort keys %ft_f_keys) {  # fold extsOf into rv
       my @out = $link_wo_ext =~ m=([^/]+)$=;
-      my $lwx = url_encode( $link_wo_ext );
-      for my $ext ( sort { $b cmp $a } @{$extsOf{$link_wo_ext}} ) {  # reverse sort is a marginal first approximation of the 'order of [type] preference' described above
-         push @out, a_href( "$lwx$ext", $ext ) . "\n";
+      my $lwx = url_encode($link_wo_ext);
+      for my $ext (sort { $b cmp $a } @{$extsOf{$link_wo_ext}}) {
+         push @out, a_href("$lwx$ext", $ext) . "\n";
          }
       my $yr = $ft_f_keys{$link_wo_ext};
-      push @{$rv{$yr}}, join(' ',@out);
+      push @{$rv{$yr}}, join(' ', @out);
       }
    $et_srch += time() - $t_srch_start;
-   return ( \%rv
-          , $cands
-          , scalar keys %unique_matches,
-          );
+   return (\%rv, $cands, scalar keys %unique_matches);
    }
 
 handler_search_keys( CGI->new );
 
 sub search_keys_find_matches { my ($qy) = @_;
    my $isaset= $qy->Vars->{search_scope} // 'bavm'; # default to Book search
-   print( $qy->Vars->{search_keys}, ' len=', length $qy->Vars->{search_keys}, " -> ");
-   print(sprintf("%v04X", $qy->Vars->{search_keys}), "<p>");
+   # print( $qy->Vars->{search_keys}, ' len=', length $qy->Vars->{search_keys}, " -> ");
+   # print(sprintf("%v04X", $qy->Vars->{search_keys}), "<p>");
    my $skeys = decode_utf8( $qy->Vars->{search_keys} );
-   print( $skeys, ' len=', length $skeys, " -> ");
-   print(sprintf("%v04X", $skeys), "<p>");
-   {
-   local $Data::Dumper::Useqq = 1;
-   print( decode_utf8(Dumper($skeys)) );
-   # print( decode_utf8(encode_utf8($skeys)) );
-   }
+   # print( $skeys, ' len=', length $skeys, " -> ");
+   # print(sprintf("%v04X", $skeys), "<p>");
+   if ( 0 ) {
+      local $Data::Dumper::Useqq = 1;
+      print( decode_utf8(Dumper($skeys)) );
+      print( decode_utf8(encode_utf8($skeys)) );
+      }
    my $q1ish = "\x{2018}\x{2019}${\q1}";
    $skeys =~ s{\b(?:artist|album|and|by|narr|narrated|narrator)\b}{ }gi; # common common paste-noise-words become word separators
    $skeys =~ s{U\.S\.S\.R\.}{USSR}g;   # got to be
@@ -242,37 +241,80 @@ sub search_keys_find_matches { my ($qy) = @_;
 
 sub pr_et_us { my ($et) = @_; return sprintf("%.6f", $et); }
 
-sub handler_search_keys { my ($qy) = @_;
-   exists $qy->Vars->{search_keys} or die "missing 'search_keys' param\n?";
-   print $qy->header("text/html;charset=UTF-8");
-   my ($norm_search_terms,$pat,$cands,$matches) = search_keys_find_matches( $qy );
-   print $qy->start_html(
-         -title=>$norm_search_terms,
-         -base=>'true', -target=>'_blank',  # links on this page will open in new client (browser) tab/window.
-         );
-   print "$pat\n" if showRegex;
-   # print $qy->Dump();
-   print $qy->h3("Found",($matches||"no"),"matches of '$norm_search_terms' among",$cands,"candidates",$qy->a({href=>"/"},"new search")), "\n";
-   for my $hr ( @Site::treelocns ) {
-      my $ms = $hr->{matches};
-      if( scalar keys %{$ms} ) {
-         my $cat = $hr->{cat};
-         print $qy->a({href=>"#$cat"},$cat),"\n";
-         }
-      }
-   for my $hr ( @Site::treelocns ) {
-      my $ms = $hr->{matches};
-      if( scalar keys %{$ms} ) {
-         my $anch = { id => $hr->{cat} };
-         for my $yr (sort { $b cmp $a } keys %{$ms}) { # print "$yr:\n";
-            print $qy->h3( $anch, $hr->{cat} . " &copy;".($yr || "<i>unknown</i>") ), "\n";
-            $anch = {};
-            print $qy->ol( map { $qy->li( $_ ); } sort @{$ms->{$yr}} ), "\n";
+sub handler_search_keys {
+    my ($qy) = @_;
+    my $tm_start = time();  # Start time for overall timing
+
+    exists $qy->Vars->{search_keys} or die "missing 'search_keys' param\n?";
+    print $qy->header("text/html;charset=UTF-8");
+    my ($norm_search_terms,$pat,$cands,$matches) = search_keys_find_matches($qy);
+
+    print $qy->start_html(
+        -title => $norm_search_terms,
+        -charset => 'UTF-8',
+    );
+
+    # Add JavaScript for smooth scrolling
+    print $qy->script(
+        {-type => 'text/javascript'},
+        q{
+            document.addEventListener('DOMContentLoaded', function() {
+                document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                    anchor.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        document.querySelector(this.getAttribute('href')).scrollIntoView({
+                            behavior: 'smooth'
+                        });
+                    });
+                });
+            });
+        }
+    );
+
+    print $qy->h3("Found $matches matches of '$norm_search_terms' among $cands candidates ",
+                  $qy->a({href => "/", target => "_blank"}, "new search"));
+
+    # Generate navigation links
+    for my $hr (@Site::treelocns) {
+        if (scalar keys %{$hr->{matches}}) {
+            print $qy->a({href => "#" . $hr->{cat}}, $hr->{cat}), " ";
+        }
+    }
+
+    # Generate content
+    for my $hr (@Site::treelocns) {
+        my $ms = $hr->{matches};
+        if (scalar keys %{$ms}) {
+            for my $yr (sort { $b cmp $a } keys %{$ms}) {
+                print $qy->h3({id => $hr->{cat}}, $hr->{cat} . " &copy;" . ($yr || "<em>unknown</em>"));
+                print $qy->ol(
+                    map {
+                        $qy->li(
+                            join(' ',
+                                 map {
+                                     if (m{^<a\s+href="([^"]+)".*>(.*?)</a>$}) {
+                                         $qy->a({href => $1, target => "_blank"}, $2)
+                                     } else {
+                                         $_
+                                     }
+                                 } split(/\s+/, $_)
+                            )
+                        )
+                    } sort @{$ms->{$yr}}
+                );
             }
-         }
-      }
-   print $qy->h3( "Server response timing:" );
-   print $qy->ol( [ "Toverall: ".pr_et_us( time() - $tm_start ), " Tfind: ".pr_et_us( $et_find ), " Tsrch: ".pr_et_us( $et_srch ) ] ), "UTB= $untainted_bin", "\n";
-   print $qy->end_html;
-   exit 0;
-   }
+        }
+    }
+
+    # Print timing information
+    print $qy->h3("Server response timing:");
+    print $qy->ol([
+        "Toverall: " . pr_et_us(time() - $tm_start),
+        "Tfind: " . pr_et_us($et_find),
+        "Tsrch: " . pr_et_us($et_srch)
+    ]);
+    print "UTB= $untainted_bin\n";
+
+    print $qy->end_html;
+    exit 0;
+}
