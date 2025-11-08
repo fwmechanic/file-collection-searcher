@@ -10,7 +10,7 @@ personal-server-local directory trees.
 
   * Search based only on filename content; a sidecar metadata database is not present.
   * Provides only Read (R in CRUD) services against the collection.  Collection dir trees are readonly.
-  * Uses nginx + [fcgiwrap](https://www.nginx.com/resources/wiki/start/topics/examples/fcgiwrap/) ([github](https://github.com/gnosek/fcgiwrap)) to front the Perl-CGI script and serve all media artifacts.
+  * Uses (caddy or nginx) + [fcgiwrap](https://www.nginx.com/resources/wiki/start/topics/examples/fcgiwrap/) ([github](https://github.com/gnosek/fcgiwrap)) to front the Perl-CGI script and serve all media artifacts.
   * Transforms user query parameter(s) into a Perl regex which is compared against each candidate filename in a (cached) list of filenames (output of `find` command) across multiple disjoint directory trees.
   * Uses `inotifywait` daemon output (file touching) to determine whether the cached list of filenames remains valid (else a find scan is performed to update the cache before searching).
   * Presents output in descending copyright-year order, sorted alphabetically within year, with different formats of the same title coalesced to save UI space.
@@ -61,44 +61,28 @@ ls -l /var/www-filesearcher-data/
    Video -> /mnt/smb/5t_a/data/Video/
 ```
 This facilitates future shuffling of content as HDD volumes are migrated, etc.
+
+## install CGI-related plumbing progs
+On Ubuntu 20.04 (or later, presumably):
+  * run `apt-get install fcgiwrap libcgi-pm-perl`
+
+## install caddy
+
+from its independent repo https://dl.cloudsmith.io/public/caddy/stable/deb/ubuntu
+
+see Caddyfile in this repo for the current version
+
+`sudo caddy validate --config /etc/caddy/Caddyfile && sudo systemctl reload caddy`
+
 ## install nginx and CGI-related plumbing progs, configure nginx
 On Ubuntu 20.04 (or later, presumably):
   * run `apt-get install nginx fcgiwrap libcgi-pm-perl`
-  * set Nginx config (Ubuntu: `/etc/nginx/sites-enabled/default`) as follows
+  * set Nginx config (Ubuntu: `/etc/nginx/sites-enabled/default`) using nginx-site in this repo as a template.
      * with `%repo_dir%` being replaced by the location of this repo
+     * Run `nginx -t` to test config-file changes.
      * NB: **if you edit `/etc/nginx/sites-enabled/default`, must `systemctl reload nginx` for it to take effect!**
-```
-server {
-    listen 80 default_server;
-    listen [::]:80 default_server ipv6only=on;
-    server_name localhost;
-    access_log off;
-    error_log /var/log/nginx/error.log notice;
 
-    location / {
-        root %repo_dir%/;
-        autoindex off;
-        index index.html;
-    }
-
-    location /files {
-        alias /var/www-filesearcher-data;  # dir containing symlinks to disparate content dirs, created above
-        autoindex on;
-        autoindex_exact_size off;
-    }
-
-    location ~ ^/cgi {
-        # map /cgi/scriptname -> %repo_dir%/scriptname
-        root %repo_dir%/;  # set $document_root for 'fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;' in /etc/nginx/fastcgi.conf
-        rewrite ^/cgi/(.*) /$1 break;  # rmv '/cgi/' prefix (rewrite directive has space-delimited params)
-
-        fastcgi_pass unix:/var/run/fcgiwrap.socket;
-        include fastcgi_params;
-    }
-}
-
-```
-Run `nginx -t` to test config-file changes.
+## how it works
 
 The above, in combination with the contents of this repo, creates from n
 disjoint content trees on the server, `/mnt/smb/pri/data/public/ebooks` and
@@ -230,6 +214,8 @@ After suffering with this situation for too long, I hacked up the following:
  * Modified `search-files` script to run `find` (overwriting `/cgi-app-cache/search-files/$dir-leafname`) iff mtime of file `$dir/modify.log` is newer than mtime of `/cgi-app-cache/search-files/$dir-leafname`.
 
 This brings performance back down to the 300mS range; not awesome, but massively better than 25,000mS!
+
+*Update 20251108*: 147000 files and counting.  Switched from nginx to caddy to facilitate migration to https (only).
 
 ## Benchmarking
 

@@ -1,0 +1,30 @@
+
+# block for file-collection-searcher on host files.home.arpa
+
+files.home.arpa {
+    tls internal
+    # Static files
+    root * /home/kgoodwin/my/repos/file-collection-searcher
+    # Redirect /files -> /files/ (so the link works even without the trailing slash)
+    handle /files {
+       redir /files/ 308
+    }
+    # /files -> /var/www-filesearcher-data (with directory listing)
+    handle_path /files/* {
+        root * /var/www-filesearcher-data
+        file_server browse
+    }
+    # CGI via fcgiwrap (served over FastCGI)
+    # Requests like /cgi/foo.cgi become /home/.../foo.cgi
+    handle_path /cgi/* {
+        reverse_proxy unix//var/run/fcgiwrap.socket {
+            transport fastcgi {
+                # Treat .cgi files as scripts; add more if you use them
+                split .cgi
+                root /home/kgoodwin/my/repos/file-collection-searcher
+            }
+        }
+    }
+    # Static site (index.html, etc.)
+    file_server
+}
